@@ -1,0 +1,13 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "moduleSuffixes": [".ios", ".android", ".native", ""]
+  },
+  "exclude": ["convex/**/*"],
+  "include": ["**/*.tsx", "**/*.ts", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}
