@@ -46,7 +46,9 @@
           "color": "#1a472a",
           "defaultChannel": "prayer-reminders"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-router"
     ],
     "extra": {
       "eas": {

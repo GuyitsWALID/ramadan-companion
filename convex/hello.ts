@@ -1,7 +1,11 @@
+import { v } from "convex/values"; // This was missing!
 import { mutation, query } from "./_generated/server";
 
-export const get = query(() => {
-  return "Hello from Convex!";
+export const get = query({
+  args: {},
+  handler: async () => {
+    return "Hello from Convex!";
+  },
 });
 
 export const hello = mutation({

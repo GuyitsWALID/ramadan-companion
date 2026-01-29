@@ -1,67 +1,29 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { calculatePrayerTimes } from "react-native-adhan";
-
-interface PrayerTime {
-  name: string;
-  time: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  completed?: boolean;
-}
+import { Ionicons } from "@expo/vector-icons";
+import { usePrayerTimes } from "../../hooks/usePrayerTimes";
+import { useNotificationManager } from "../../hooks/useNotificationManager";
 
 export default function PrayerScreen() {
-  const [prayerTimes, setPrayerTimes] = useState<PrayerTime[]>([]);
-  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const {
+    prayerTimes,
+    nextPrayer,
+    location,
+    loading,
+    togglePrayerCompletion,
+    refreshPrayerTimes,
+    formatTimeUntil,
+  } = usePrayerTimes();
+
+  const { scheduleDailyPrayerNotifications, notificationSettings } = useNotificationManager();
 
   useEffect(() => {
-    loadPrayerTimes();
-  }, []);
-
-  const loadPrayerTimes = async () => {
-    try {
-      // For now, use default location (Makkah)
-      const location = { latitude: 21.4225, longitude: 39.8262 };
-      setCurrentLocation(location);
-
-      // Calculate prayer times for today
-      const today = new Date();
-      const params = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        calculationMethod: 2, // Muslim World League
-        madhab: 1, // Shafi
-      };
-
-      const times = calculatePrayerTimes(today, params);
-      
-      const prayers: PrayerTime[] = [
-        { name: "Fajr", time: times.fajr, icon: "sunny-outline", completed: false },
-        { name: "Sunrise", time: times.sunrise, icon: "sunny", completed: null },
-        { name: "Dhuhr", time: times.dhuhr, icon: "time-outline", completed: false },
-        { name: "Asr", time: times.asr, icon: "partly-sunny-outline", completed: false },
-        { name: "Maghrib", time: times.maghrib, icon: "sunset-outline", completed: false },
-        { name: "Isha", time: times.isha, icon: "moon-outline", completed: false },
-      ];
-
-      setPrayerTimes(prayers);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error loading prayer times:", error);
-      setLoading(false);
+    // Schedule notifications when prayer times are loaded
+    if (!loading && prayerTimes.length > 0 && notificationSettings?.prayerReminders) {
+      scheduleDailyPrayerNotifications();
     }
-  };
-
-  const togglePrayerCompleted = (index: number) => {
-    const updatedPrayers = [...prayerTimes];
-    if (updatedPrayers[index].completed !== null) {
-      updatedPrayers[index].completed = !updatedPrayers[index].completed;
-    }
-    setPrayerTimes(updatedPrayers);
-  };
+  }, [loading, prayerTimes, notificationSettings?.prayerReminders]);
 
   if (loading) {
     return (
@@ -73,15 +35,41 @@ export default function PrayerScreen() {
     );
   }
 
+  const getPrayerIcon = (prayerName: string): keyof typeof Ionicons.glyphMap => {
+    const iconMap: { [key: string]: keyof typeof Ionicons.glyphMap } = {
+      "Fajr": "sunny-outline",
+      "Sunrise": "sunny",
+      "Dhuhr": "time-outline",
+      "Asr": "partly-sunny-outline",
+      "Maghrib": "sunset-outline",
+      "Isha": "moon-outline",
+    };
+    return iconMap[prayerName] || "time-outline";
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Prayer Times</Text>
           <Text style={styles.location}>
-            Location: {currentLocation ? "Makkah" : "Loading..."}
+            Location: {location ? `${location.city || "Custom"}` : "Loading..."}
           </Text>
         </View>
+
+        {nextPrayer && (
+          <View style={styles.nextPrayerCard}>
+            <Ionicons name="time" size={32} color="#ffffff" />
+            <View style={styles.nextPrayerInfo}>
+              <Text style={styles.nextPrayerTitle}>Next Prayer</Text>
+              <Text style={styles.nextPrayerName}>{nextPrayer.name}</Text>
+              <Text style={styles.nextPrayerTime}>{nextPrayer.time}</Text>
+              <Text style={styles.nextPrayerCountdown}>
+                {formatTimeUntil(nextPrayer.minutesUntil)}
+              </Text>
+            </View>
+          </View>
+        )}
 
         <View style={styles.dateCard}>
           <Text style={styles.dateText}>{new Date().toLocaleDateString()}</Text>
@@ -96,19 +84,25 @@ export default function PrayerScreen() {
                 styles.prayerCard,
                 prayer.completed === true && styles.completedCard,
                 prayer.completed === null && styles.disabledCard,
+                prayer.isUpcoming && styles.upcomingCard,
               ]}
-              onPress={() => togglePrayerCompleted(index)}
+              onPress={() => togglePrayerCompletion(prayer.name)}
               disabled={prayer.completed === null}
             >
-              <View style={styles.prayerIcon}>
+              <View style={[
+                styles.prayerIcon,
+                prayer.isUpcoming && styles.upcomingIcon
+              ]}>
                 <Ionicons 
-                  name={prayer.icon} 
+                  name={getPrayerIcon(prayer.name)} 
                   size={24} 
                   color={
                     prayer.completed === true 
                       ? "#ffffff" 
                       : prayer.completed === null 
                       ? "#888" 
+                      : prayer.isUpcoming
+                      ? "#1a472a"
                       : "#1a472a"
                   } 
                 />
@@ -116,20 +110,26 @@ export default function PrayerScreen() {
               <View style={styles.prayerInfo}>
                 <Text style={styles.prayerName}>{prayer.name}</Text>
                 <Text style={styles.prayerTime}>{prayer.time}</Text>
+                {prayer.isUpcoming && (
+                  <Text style={styles.nextPrayerLabel}>Next</Text>
+                )}
               </View>
               <View style={styles.prayerStatus}>
                 {prayer.completed === true && (
                   <Ionicons name="checkmark-circle" size={24} color="#1a472a" />
                 )}
-                {prayer.completed === false && (
+                {prayer.completed === false && !prayer.isUpcoming && (
                   <Ionicons name="radio-button-off" size={24} color="#888" />
+                )}
+                {prayer.isUpcoming && (
+                  <Ionicons name="time" size={24} color="#f9a825" />
                 )}
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        <TouchableOpacity style={styles.refreshButton} onPress={loadPrayerTimes}>
+        <TouchableOpacity style={styles.refreshButton} onPress={refreshPrayerTimes}>
           <Ionicons name="refresh" size={20} color="#ffffff" />
           <Text style={styles.refreshButtonText}>Refresh Times</Text>
         </TouchableOpacity>
@@ -168,6 +168,46 @@ const styles = StyleSheet.create({
   location: {
     fontSize: 14,
     color: "#666",
+  },
+  nextPrayerCard: {
+    backgroundColor: "#f9a825",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  nextPrayerInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  nextPrayerTitle: {
+    fontSize: 14,
+    color: "#ffffff",
+    opacity: 0.8,
+    marginBottom: 4,
+  },
+  nextPrayerName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  nextPrayerTime: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  nextPrayerCountdown: {
+    fontSize: 16,
+    color: "#ffffff",
+    opacity: 0.9,
   },
   dateCard: {
     backgroundColor: "#1a472a",
@@ -208,6 +248,11 @@ const styles = StyleSheet.create({
   disabledCard: {
     backgroundColor: "#f8f8f8",
   },
+  upcomingCard: {
+    backgroundColor: "#fff8e1",
+    borderWidth: 2,
+    borderColor: "#f9a825",
+  },
   prayerIcon: {
     width: 40,
     height: 40,
@@ -216,6 +261,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
+  },
+  upcomingIcon: {
+    backgroundColor: "#ffecb3",
   },
   prayerInfo: {
     flex: 1,
@@ -229,6 +277,12 @@ const styles = StyleSheet.create({
   prayerTime: {
     fontSize: 16,
     color: "#666",
+    marginBottom: 2,
+  },
+  nextPrayerLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#f9a825",
   },
   prayerStatus: {
     justifyContent: "center",
