@@ -91,7 +91,8 @@ export default function AuthScreen() {
       
       <Text style={styles.title}>Sign in with Email</Text>
       <Text style={styles.subtitle}>
-        We'll send you a magic link to sign in instantly - no password needed!
+        Enter your email to receive a verification code.{"\n"}
+        <Text style={styles.demoNotice}>(Demo: Code will appear in a popup)</Text>
       </Text>
 
       <View style={styles.inputContainer}>
@@ -137,14 +138,28 @@ export default function AuthScreen() {
         <View style={styles.divider} />
       </View>
 
-      <TouchableOpacity style={styles.socialButton}>
-        <Ionicons name="logo-google" size={24} color={colors.text} />
-        <Text style={styles.socialButtonText}>Continue with Google</Text>
+      <TouchableOpacity 
+        style={[styles.socialButton, styles.socialButtonDisabled]}
+        disabled
+        onPress={() => {}}
+      >
+        <Ionicons name="logo-google" size={24} color={colors.textMuted} />
+        <Text style={[styles.socialButtonText, styles.socialButtonTextDisabled]}>Continue with Google</Text>
+        <View style={styles.comingSoonBadge}>
+          <Text style={styles.comingSoonText}>Soon</Text>
+        </View>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.socialButton}>
-        <Ionicons name="logo-apple" size={24} color={colors.text} />
-        <Text style={styles.socialButtonText}>Continue with Apple</Text>
+      <TouchableOpacity 
+        style={[styles.socialButton, styles.socialButtonDisabled]}
+        disabled
+        onPress={() => {}}
+      >
+        <Ionicons name="logo-apple" size={24} color={colors.textMuted} />
+        <Text style={[styles.socialButtonText, styles.socialButtonTextDisabled]}>Continue with Apple</Text>
+        <View style={styles.comingSoonBadge}>
+          <Text style={styles.comingSoonText}>Soon</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -452,11 +467,37 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     gap: spacing.md,
     marginBottom: spacing.sm,
+    position: "relative",
+  },
+  socialButtonDisabled: {
+    opacity: 0.6,
+    backgroundColor: colors.surfaceElevated,
   },
   socialButtonText: {
     fontSize: typography.sizes.md,
     fontFamily: typography.fonts.semiBold,
     color: colors.text,
+  },
+  socialButtonTextDisabled: {
+    color: colors.textMuted,
+  },
+  comingSoonBadge: {
+    position: "absolute",
+    right: spacing.sm,
+    backgroundColor: colors.secondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+  },
+  comingSoonText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
+  },
+  demoNotice: {
+    fontFamily: typography.fonts.medium,
+    color: colors.secondary,
+    fontSize: typography.sizes.sm,
   },
   footer: {
     paddingHorizontal: spacing.xl,

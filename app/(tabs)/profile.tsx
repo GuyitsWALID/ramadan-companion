@@ -1,15 +1,22 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Image, Platform } from "react-native";
 import { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useUser } from "../../context/UserContext";
+import { useAuth } from "../../context/AuthContext";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
 export default function ProfileScreen() {
-  const { user, settings, updateSettings, loading, isAuthenticated, login, logout } = useUser();
-  const { prayerTimes, location, prayerSettings } = usePrayerTimes();
+  const { user: userContextUser, settings, updateSettings, loading: userLoading } = useUser();
+  const { user: authUser, isAuthenticated, isOnboarded, signOut, updateUser } = useAuth();
+  const { prayerTimes, location: prayerLocation, prayerSettings } = usePrayerTimes();
+  
+  // Merge user data - auth user takes priority
+  const user = authUser || userContextUser;
+  const location = authUser?.location || prayerLocation;
+  const loading = userLoading;
   
   const [localSettings, setLocalSettings] = useState(settings);
 
@@ -36,15 +43,15 @@ export default function ProfileScreen() {
     },
     {
       title: "Method",
-      value: prayerSettings?.calculationMethod?.slice(0, 8) || "Default",
+      value: (authUser?.calculationMethod || prayerSettings?.calculationMethod)?.slice(0, 10) || "Default",
       icon: "calculator-outline",
       color: colors.secondary,
     },
     {
-      title: "Status",
-      value: isAuthenticated ? "Synced" : "Local",
-      icon: isAuthenticated ? "cloud-done-outline" : "cloud-offline-outline",
-      color: isAuthenticated ? colors.primary : colors.textMuted,
+      title: "Quran Goal",
+      value: authUser?.quranGoal ? `${authUser.quranGoal} verses` : "Not set",
+      icon: "book-outline",
+      color: colors.primary,
     },
   ];
 
@@ -56,34 +63,41 @@ export default function ProfileScreen() {
     await updateSettings({ [key]: newValue });
   };
 
-  const handleLogin = async () => {
-    // Simple login prompt - in production, use proper auth flow
-    Alert.prompt(
-      "Sign In",
-      "Enter your email to sync your data across devices",
-      async (email) => {
-        if (email && email.includes("@")) {
-          try {
-            await login(email);
-            Alert.alert("Success", "You're now signed in!");
-          } catch (error) {
-            Alert.alert("Error", "Failed to sign in. Please try again.");
-          }
+  const handleSignOut = async () => {
+    // Handle web platform where Alert.alert may not show properly
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm("Are you sure you want to sign out? You'll need to sign in again to access your data.");
+      if (confirmed) {
+        try {
+          await signOut();
+          router.replace("/(auth)");
+        } catch (error) {
+          console.error("Error signing out:", error);
+          window.alert("Failed to sign out. Please try again.");
         }
-      },
-      "plain-text",
-      "",
-      "email-address"
-    );
-  };
+      }
+      return;
+    }
 
-  const handleLogout = () => {
+    // Native platforms use Alert.alert
     Alert.alert(
       "Sign Out",
-      "Are you sure you want to sign out? Your local data will be preserved.",
+      "Are you sure you want to sign out? You'll need to sign in again to access your data.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Sign Out", style: "destructive", onPress: logout },
+        { 
+          text: "Sign Out", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await signOut();
+              // NavigationGuard will automatically redirect to (auth)
+            } catch (error) {
+              console.error("Error signing out:", error);
+              Alert.alert("Error", "Failed to sign out. Please try again.");
+            }
+          } 
+        },
       ]
     );
   };
@@ -106,28 +120,34 @@ export default function ProfileScreen() {
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : "RC"}
+                {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "RC"}
               </Text>
             </View>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user?.name || "Ramadan Companion"}</Text>
-              <Text style={styles.userEmail}>{user?.email || "Guest User"}</Text>
-              <Text style={styles.userLocation}>
-                {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Location not set"}
-              </Text>
+              <Text style={styles.userName}>{user?.name || "Guest User"}</Text>
+              <Text style={styles.userEmail}>{user?.email || "Not signed in"}</Text>
+              <View style={styles.locationBadge}>
+                <Ionicons name="location" size={12} color={colors.primary} />
+                <Text style={styles.userLocation}>
+                  {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Location not set"}
+                </Text>
+              </View>
             </View>
           </View>
-          {!isAuthenticated ? (
-            <TouchableOpacity style={styles.signInButton} onPress={handleLogin}>
-              <Ionicons name="log-in-outline" size={20} color="#fff" />
-              <Text style={styles.signInButtonText}>Sign In to Sync</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color={colors.primary} />
-              <Text style={styles.signOutButtonText}>Sign Out</Text>
-            </TouchableOpacity>
+          
+          {/* Membership badge */}
+          {isAuthenticated && isOnboarded && (
+            <View style={styles.membershipBadge}>
+              <Ionicons name="checkmark-shield" size={16} color={colors.success} />
+              <Text style={styles.membershipText}>Premium Member</Text>
+            </View>
           )}
+          
+          {/* Sign out button - always show when authenticated since auth is required */}
+          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={20} color={colors.primary} />
+            <Text style={styles.signOutButtonText}>Sign Out</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsContainer}>
@@ -252,7 +272,16 @@ export default function ProfileScreen() {
             <Ionicons name="calculate-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Calculation Method</Text>
-              <Text style={styles.menuValue}>{prayerSettings?.calculationMethod || "Muslim World League"}</Text>
+              <Text style={styles.menuValue}>{authUser?.calculationMethod || prayerSettings?.calculationMethod || "Muslim World League"}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="moon-outline" size={24} color={colors.primary} />
+            <View style={styles.menuText}>
+              <Text style={styles.menuTitle}>Madhab (Asr Calculation)</Text>
+              <Text style={styles.menuValue}>{authUser?.madhab === "Hanafi" ? "Hanafi" : "Shafi'i"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
@@ -341,34 +370,41 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xxs,
   },
-  userLocation: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.regular,
-    color: colors.textMuted,
-  },
-  signInButton: {
+  locationBadge: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    marginTop: spacing.md,
-    gap: spacing.sm,
+    gap: spacing.xxs,
+    marginTop: spacing.xxs,
   },
-  signInButtonText: {
-    color: colors.textOnPrimary,
-    fontSize: typography.sizes.sm,
+  userLocation: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.medium,
+    color: colors.primary,
+  },
+  membershipBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: spacing.xs,
+    backgroundColor: colors.success + "15",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginTop: spacing.md,
+  },
+  membershipText: {
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.semiBold,
+    color: colors.success,
   },
   signOutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
-    borderWidth: 2,
-    borderColor: colors.primary,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.md,
     marginTop: spacing.md,
     gap: spacing.sm,

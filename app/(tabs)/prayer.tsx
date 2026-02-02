@@ -60,7 +60,7 @@ export default function PrayerScreen() {
 
         {nextPrayer && (
           <View style={styles.nextPrayerCard}>
-            <Ionicons name="time" size={32} color="#ffffff" />
+            <Ionicons name="time" size={32} color={colors.textOnPrimary} />
             <View style={styles.nextPrayerInfo}>
               <Text style={styles.nextPrayerTitle}>Next Prayer</Text>
               <Text style={styles.nextPrayerName}>{nextPrayer.name}</Text>

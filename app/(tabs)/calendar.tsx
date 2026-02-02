@@ -151,7 +151,7 @@ export default function CalendarScreen() {
 
           {specialEvents[currentDay as keyof typeof specialEvents] && (
             <View style={styles.eventCard}>
-              <Ionicons name="star" size={20} color="#f9a825" />
+              <Ionicons name="star" size={20} color={colors.secondary} />
               <Text style={styles.eventText}>
                 {specialEvents[currentDay as keyof typeof specialEvents]}
               </Text>

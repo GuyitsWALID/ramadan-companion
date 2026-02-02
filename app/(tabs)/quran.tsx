@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "../../context/UserContext";
+import { useAuth } from "../../context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
@@ -18,12 +19,16 @@ interface JuzProgress {
 const JUZ_PROGRESS_KEY = "@ramadan_juz_progress";
 
 export default function QuranScreen() {
-  const { user, userId } = useUser();
+  const { user: userContextUser, userId } = useUser();
+  const { user: authUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   
+  // Merge user data - auth user takes priority
+  const user = authUser || userContextUser;
+  
   const [readingPlan, setReadingPlan] = useState({
-    dailyVerses: 20,
+    dailyVerses: authUser?.quranGoal || 20,
     currentJuz: 1,
     startDate: new Date().toISOString(),
   });
@@ -38,16 +43,21 @@ export default function QuranScreen() {
     loadProgress();
   }, []);
 
-  // Update reading plan from user context
+  // Update reading plan from user context (including auth user's quran goal)
   useEffect(() => {
-    if (user?.quranReadingPlan) {
+    if (authUser?.quranGoal) {
+      setReadingPlan(prev => ({
+        ...prev,
+        dailyVerses: authUser.quranGoal!,
+      }));
+    } else if (userContextUser?.quranReadingPlan) {
       setReadingPlan({
-        dailyVerses: user.quranReadingPlan.dailyVerses,
-        currentJuz: user.quranReadingPlan.currentJuz,
-        startDate: user.quranReadingPlan.startDate,
+        dailyVerses: userContextUser.quranReadingPlan.dailyVerses,
+        currentJuz: userContextUser.quranReadingPlan.currentJuz,
+        startDate: userContextUser.quranReadingPlan.startDate,
       });
     }
-  }, [user]);
+  }, [authUser, userContextUser]);
 
   const loadProgress = async () => {
     try {

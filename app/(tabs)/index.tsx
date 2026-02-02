@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-nat
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useUser } from "../../context/UserContext";
+import { useAuth } from "../../context/AuthContext";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
@@ -20,13 +21,17 @@ const getRamadanDay = (): { day: number; total: number } | null => {
 };
 
 export default function HomeScreen() {
-  const { user, loading: userLoading } = useUser();
+  const { user: userContextUser, loading: userLoading } = useUser();
+  const { user: authUser } = useAuth();
   const { 
     prayerTimes, 
     nextPrayer, 
     loading: prayerLoading, 
     formatTimeUntil 
   } = usePrayerTimes();
+
+  // Merge user data - auth user takes priority
+  const user = authUser || userContextUser;
 
   const ramadanDay = getRamadanDay();
   const completedPrayers = prayerTimes.filter(p => p.completed && p.name !== "Sunrise").length;
@@ -38,6 +43,12 @@ export default function HomeScreen() {
     if (hour < 12) return "Good Morning";
     if (hour < 17) return "Good Afternoon";
     return "Good Evening";
+  };
+
+  // Get first name for greeting
+  const getFirstName = () => {
+    if (!user?.name) return "";
+    return user.name.split(" ")[0];
   };
 
   if (prayerLoading || userLoading) {
@@ -57,7 +68,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.welcome}>Assalamu Alaikum</Text>
           <Text style={styles.subtitle}>
-            {getGreeting()}{user?.name ? `, ${user.name}` : ""}
+            {getGreeting()}{getFirstName() ? `, ${getFirstName()}` : ""}
           </Text>
         </View>
 
@@ -77,6 +88,7 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
+
 
         {/* Quran Reading Card */}
         <View style={styles.card}>
