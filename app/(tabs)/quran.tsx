@@ -1,7 +1,11 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
-import { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useState, useEffect, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useUser } from "../../context/UserContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface JuzProgress {
   juz: number;
@@ -10,29 +14,138 @@ interface JuzProgress {
   progress: number;
 }
 
+const JUZ_PROGRESS_KEY = "@ramadan_juz_progress";
+
 export default function QuranScreen() {
+  const { user, userId } = useUser();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
   const [readingPlan, setReadingPlan] = useState({
     dailyVerses: 20,
-    currentJuz: 15,
+    currentJuz: 1,
     startDate: new Date().toISOString(),
   });
 
-  const [juzProgress] = useState<JuzProgress[]>(
-    Array.from({ length: 30 }, (_, i) => ({
-      juz: i + 1,
-      name: `Juz ${i + 1}`,
-      completed: i < 14,
-      progress: i < 14 ? 100 : Math.floor(Math.random() * 80),
-    }))
-  );
+  const [juzProgress, setJuzProgress] = useState<JuzProgress[]>([]);
+  
+  const updateReadingPlanMutation = useMutation(api.users.updateQuranReadingPlan);
+  const saveQuranProgressMutation = useMutation(api.users.saveQuranProgress);
+
+  // Load saved progress from AsyncStorage
+  useEffect(() => {
+    loadProgress();
+  }, []);
+
+  // Update reading plan from user context
+  useEffect(() => {
+    if (user?.quranReadingPlan) {
+      setReadingPlan({
+        dailyVerses: user.quranReadingPlan.dailyVerses,
+        currentJuz: user.quranReadingPlan.currentJuz,
+        startDate: user.quranReadingPlan.startDate,
+      });
+    }
+  }, [user]);
+
+  const loadProgress = async () => {
+    try {
+      const savedProgress = await AsyncStorage.getItem(JUZ_PROGRESS_KEY);
+      if (savedProgress) {
+        setJuzProgress(JSON.parse(savedProgress));
+      } else {
+        // Initialize with default progress
+        const initialProgress = Array.from({ length: 30 }, (_, i) => ({
+          juz: i + 1,
+          name: `Juz ${i + 1}`,
+          completed: false,
+          progress: 0,
+        }));
+        setJuzProgress(initialProgress);
+      }
+    } catch (error) {
+      console.error("Error loading Quran progress:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveProgress = async (progress: JuzProgress[]) => {
+    try {
+      await AsyncStorage.setItem(JUZ_PROGRESS_KEY, JSON.stringify(progress));
+    } catch (error) {
+      console.error("Error saving Quran progress:", error);
+    }
+  };
 
   const completedJuz = juzProgress.filter(j => j.completed).length;
-  const overallProgress = (completedJuz / 30) * 100;
+  const overallProgress = juzProgress.length > 0 ? (completedJuz / 30) * 100 : 0;
 
-  const toggleJuzCompleted = (juz: number) => {
-    // This would update the database in a real app
-    console.log(`Toggle Juz ${juz} completion`);
-  };
+  const toggleJuzCompleted = useCallback(async (juzNumber: number) => {
+    setSaving(true);
+    
+    const updatedProgress = juzProgress.map(j => {
+      if (j.juz === juzNumber) {
+        return { 
+          ...j, 
+          completed: !j.completed,
+          progress: !j.completed ? 100 : 0,
+        };
+      }
+      return j;
+    });
+
+    setJuzProgress(updatedProgress);
+    await saveProgress(updatedProgress);
+
+    // Update current Juz to the next incomplete one
+    const nextIncomplete = updatedProgress.find(j => !j.completed);
+    if (nextIncomplete) {
+      setReadingPlan(prev => ({ ...prev, currentJuz: nextIncomplete.juz }));
+    }
+
+    // Save to Convex if user is logged in
+    if (userId) {
+      try {
+        const completedJuzNumbers = updatedProgress
+          .filter(j => j.completed)
+          .map(j => j.juz);
+
+        await updateReadingPlanMutation({
+          userId,
+          dailyVerses: readingPlan.dailyVerses,
+          currentJuz: nextIncomplete?.juz || 30,
+          completedJuz: completedJuzNumbers,
+          startDate: readingPlan.startDate,
+        });
+
+        // Save daily progress
+        await saveQuranProgressMutation({
+          userId,
+          date: new Date().toISOString().split("T")[0],
+          juzNumber,
+          versesRead: updatedProgress.find(j => j.juz === juzNumber)?.completed ? 100 : 0,
+          totalVerses: 100,
+          completed: updatedProgress.find(j => j.juz === juzNumber)?.completed || false,
+        });
+      } catch (error) {
+        console.error("Error syncing progress to Convex:", error);
+      }
+    }
+
+    setSaving(false);
+  }, [juzProgress, userId, readingPlan, updateReadingPlanMutation, saveQuranProgressMutation]);
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1a472a" />
+          <Text style={styles.loadingText}>Loading Quran progress...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -58,13 +171,18 @@ export default function QuranScreen() {
         <View style={styles.planCard}>
           <Text style={styles.planTitle}>Today's Reading</Text>
           <View style={styles.planInfo}>
-            <Ionicons name="book-outline" size={24} color="#1a472a" />
+            <Ionicons name="book-outline" size={24} color="#ffffff" />
             <View style={styles.planDetails}>
               <Text style={styles.planJuz}>Juz {readingPlan.currentJuz}</Text>
               <Text style={styles.planVerses}>{readingPlan.dailyVerses} verses planned</Text>
             </View>
-            <TouchableOpacity style={styles.startButton}>
-              <Text style={styles.startButtonText}>Start</Text>
+            <TouchableOpacity 
+              style={styles.startButton}
+              onPress={() => toggleJuzCompleted(readingPlan.currentJuz)}
+            >
+              <Text style={styles.startButtonText}>
+                {juzProgress[readingPlan.currentJuz - 1]?.completed ? "Done ✓" : "Mark Done"}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -81,14 +199,14 @@ export default function QuranScreen() {
               <Text style={styles.statLabel}>Juz Completed</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>30</Text>
-              <Text style={styles.statLabel}>Total Juz</Text>
+              <Text style={styles.statValue}>{30 - completedJuz}</Text>
+              <Text style={styles.statLabel}>Remaining</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.juzList}>
-          <Text style={styles.juzListTitle}>Juz Progress</Text>
+          <Text style={styles.juzListTitle}>Juz Progress {saving && "(Saving...)"}</Text>
           {juzProgress.map((juz) => (
             <TouchableOpacity
               key={juz.juz}
@@ -97,11 +215,12 @@ export default function QuranScreen() {
                 juz.completed && styles.completedJuzCard,
               ]}
               onPress={() => toggleJuzCompleted(juz.juz)}
+              disabled={saving}
             >
               <View style={styles.juzInfo}>
                 <Text style={styles.juzName}>{juz.name}</Text>
                 <Text style={styles.juzProgress}>
-                  {juz.completed ? "Completed" : `${juz.progress}% complete`}
+                  {juz.completed ? "Completed ✓" : "Tap to mark complete"}
                 </Text>
               </View>
               <View style={styles.juzStatus}>
@@ -300,5 +419,15 @@ const styles = StyleSheet.create({
   },
   juzStatus: {
     justifyContent: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
   },
 });

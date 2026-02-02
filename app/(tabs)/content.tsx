@@ -1,5 +1,5 @@
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -222,11 +222,11 @@ export default function ContentScreen() {
               <View style={styles.contentHeader}>
                 <View style={styles.contentMeta}>
                   <Ionicons name={getTypeIcon(item.type)} size={16} color="#1a472a" />
-                  <Text style={contentType}>{item.type}</Text>
-                  <Text style={contentSeparator}>•</Text>
-                  <Text style={contentCategory}>{item.category}</Text>
+                  <Text style={styles.contentType}>{item.type}</Text>
+                  <Text style={styles.contentSeparator}>•</Text>
+                  <Text style={styles.contentCategory}>{item.category}</Text>
                 </View>
-                <Text style={contentDuration}>
+                <Text style={styles.contentDuration}>
                   {formatDuration(item.duration, item.readTime)}
                 </Text>
               </View>
@@ -235,14 +235,14 @@ export default function ContentScreen() {
               <Text style={styles.contentExcerpt}>{item.excerpt}</Text>
 
               <View style={styles.contentFooter}>
-                <Text style={contentAuthor}>By {item.author}</Text>
-                <Text style={contentPublished}>{item.publishedAt}</Text>
+                <Text style={styles.contentAuthor}>By {item.author}</Text>
+                <Text style={styles.contentPublished}>{item.publishedAt}</Text>
               </View>
 
               <View style={styles.tagsContainer}>
                 {item.tags.slice(0, 3).map((tag, index) => (
                   <View key={index} style={styles.tag}>
-                    <Text style={tagText}>#{tag}</Text>
+                    <Text style={styles.tagText}>#{tag}</Text>
                   </View>
                 ))}
               </View>

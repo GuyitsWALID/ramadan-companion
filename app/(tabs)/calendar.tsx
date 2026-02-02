@@ -1,58 +1,126 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
-import { useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useState, useEffect, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { usePrayerTimes } from "../../hooks/usePrayerTimes";
+import { useUser } from "../../context/UserContext";
 
 interface RamadanDay {
   dayNumber: number;
   date: string;
+  hijriDate: string;
   sehriTime: string;
   iftarTime: string;
   city: string;
   country: string;
 }
 
+// Ramadan 2026 starts approximately Feb 17, 2026 (1447 AH)
+const RAMADAN_START_2026 = new Date(2026, 1, 17);
+const RAMADAN_YEAR_HIJRI = "1447 AH";
+
 export default function CalendarScreen() {
-  const [currentDay, setCurrentDay] = useState(5);
+  const { prayerTimes, location, loading: prayerLoading } = usePrayerTimes();
+  const { user } = useUser();
+  
+  const [currentDay, setCurrentDay] = useState(1);
   const [ramadanDays, setRamadanDays] = useState<RamadanDay[]>([]);
   const [selectedDay, setSelectedDay] = useState<RamadanDay | null>(null);
 
+  // Calculate actual Ramadan day based on current date
   useEffect(() => {
-    // Generate sample Ramadan calendar data
+    const today = new Date();
+    const diffTime = today.getTime() - RAMADAN_START_2026.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    
+    if (diffDays >= 1 && diffDays <= 30) {
+      setCurrentDay(diffDays);
+    } else if (diffDays < 1) {
+      setCurrentDay(1); // Before Ramadan
+    } else {
+      setCurrentDay(30); // After Ramadan
+    }
+  }, []);
+
+  // Generate Ramadan calendar with real Fajr/Maghrib times
+  useEffect(() => {
+    const fajrTime = prayerTimes.find(p => p.name === "Fajr")?.time || "05:00";
+    const maghribTime = prayerTimes.find(p => p.name === "Maghrib")?.time || "18:00";
+    const cityName = user?.location?.city || location?.city || "Your Location";
+    const countryName = user?.location?.country || location?.country || "";
+    
+    // Generate 30 days of Ramadan
     const days: RamadanDay[] = Array.from({ length: 30 }, (_, i) => {
-      const date = new Date(2025, 1, 28 + i); // Assuming Ramadan starts Feb 28, 2025
+      const date = new Date(RAMADAN_START_2026);
+      date.setDate(date.getDate() + i);
+      
+      // Adjust times slightly for each day (sunrise gets earlier, sunset later)
+      const adjustMinutes = Math.floor(i * 0.5);
+      const sehriHour = parseInt(fajrTime.split(":")[0]);
+      const sehriMin = parseInt(fajrTime.split(":")[1]) - 10 - adjustMinutes;
+      const iftarHour = parseInt(maghribTime.split(":")[0]);
+      const iftarMin = parseInt(maghribTime.split(":")[1]) + adjustMinutes;
+      
       return {
         dayNumber: i + 1,
-        date: date.toLocaleDateString(),
-        sehriTime: `${4 + Math.floor(i / 5)}:${String(30 + (i % 5) * 6).padStart(2, '0')} AM`,
-        iftarTime: `${6 + Math.floor(i / 5)}:${String((i % 5) * 10).padStart(2, '0')} PM`,
-        city: "New York",
-        country: "USA",
+        date: date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+        hijriDate: `${i + 1} Ramadan ${RAMADAN_YEAR_HIJRI}`,
+        sehriTime: `${String(sehriHour).padStart(2, '0')}:${String(Math.max(0, sehriMin)).padStart(2, '0')}`,
+        iftarTime: `${String(iftarHour).padStart(2, '0')}:${String(Math.min(59, iftarMin)).padStart(2, '0')}`,
+        city: cityName,
+        country: countryName,
       };
     });
+    
     setRamadanDays(days);
-    setSelectedDay(days[currentDay - 1]);
-  }, [currentDay]);
+    setSelectedDay(days[currentDay - 1] || days[0]);
+  }, [currentDay, prayerTimes, location, user]);
 
-  const specialEvents = {
-    1: "Start of Ramadan",
-    7: "Lailat al-Qadr begins",
-    10: "Middle of Ramadan",
-    21: "Lailat al-Qadr (Night of Power)",
-    27: "Lailat al-Qadr (observed)",
-    30: "Eid al-Fitr eve",
+  const specialEvents: Record<number, string> = {
+    1: "First day of Ramadan",
+    10: "First 10 days (Mercy) complete",
+    20: "Second 10 days (Forgiveness) complete",
+    21: "Last 10 days begin - Laylat al-Qadr",
+    23: "Possible Laylat al-Qadr",
+    25: "Possible Laylat al-Qadr",
+    27: "Most likely Laylat al-Qadr",
+    29: "Possible Laylat al-Qadr",
+    30: "Last day of Ramadan - Eid tomorrow!",
   };
 
   const getDaysLeft = () => {
     return 30 - currentDay;
   };
 
+  const isRamadanActive = useMemo(() => {
+    const today = new Date();
+    const endDate = new Date(RAMADAN_START_2026);
+    endDate.setDate(endDate.getDate() + 30);
+    return today >= RAMADAN_START_2026 && today <= endDate;
+  }, []);
+
+  if (prayerLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1a472a" />
+          <Text style={styles.loadingText}>Loading calendar...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView}>
         <View style={styles.header}>
           <Text style={styles.title}>Ramadan Calendar</Text>
-          <Text style={styles.subtitle}>1445 AH / 2025 CE</Text>
+          <Text style={styles.subtitle}>{RAMADAN_YEAR_HIJRI} / 2026 CE</Text>
+          {selectedDay && (
+            <Text style={styles.locationText}>
+              📍 {selectedDay.city}{selectedDay.country ? `, ${selectedDay.country}` : ""}
+            </Text>
+          )}
         </View>
 
         <View style={styles.currentDayCard}>
@@ -194,6 +262,21 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   subtitle: {
+    fontSize: 16,
+    color: "#666",
+  },
+  locationText: {
+    fontSize: 14,
+    color: "#888",
+    marginTop: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
     fontSize: 16,
     color: "#666",
   },

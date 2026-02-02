@@ -11,7 +11,6 @@ import {
   PrayerSettings,
   LocationData 
 } from "../utils/prayerTimes";
-import { savePrayerTimes } from "../convex/_generated/api";
 
 interface PrayerTime {
   name: string;
@@ -65,7 +64,7 @@ export const usePrayerTimes = () => {
       
       const prayerList: PrayerTime[] = [
         { name: "Fajr", time: times.fajr, completed: false },
-        { name: "Sunrise", time: times.sunrise, completed: null },
+        { name: "Sunrise", time: times.sunrise, completed: false, isUpcoming: false },
         { name: "Dhuhr", time: times.dhuhr, completed: false },
         { name: "Asr", time: times.asr, completed: false },
         { name: "Maghrib", time: times.maghrib, completed: false },

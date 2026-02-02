@@ -1,68 +1,102 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert } from "react-native";
 import { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
 import { router } from "expo-router";
+import { useUser } from "../../context/UserContext";
+import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 
 export default function ProfileScreen() {
-  const [userSettings, setUserSettings] = useState({
-    prayerReminders: true,
-    quranReminders: true,
-    ramadanReminders: true,
-    soundEnabled: true,
-    vibrationEnabled: true,
-    darkMode: false,
-    language: "english",
-    calculationMethod: "muslim_world_league",
-  });
+  const { user, settings, updateSettings, loading, isAuthenticated, login, logout } = useUser();
+  const { prayerTimes, location, prayerSettings } = usePrayerTimes();
+  
+  const [localSettings, setLocalSettings] = useState(settings);
 
-  // Mock user data - in real app, this would come from Convex
-  const userData = {
-    name: "Ahmed Khan",
-    email: "ahmed.khan@example.com",
-    joinDate: "2024-01-15",
-    location: "New York, USA",
-    totalPrayers: 124,
-    quranDays: 18,
-    currentStreak: 5,
-    longestStreak: 12,
-  };
+  // Sync local settings with context
+  useEffect(() => {
+    setLocalSettings(settings);
+  }, [settings]);
 
+  // Calculate stats from actual data
+  const completedPrayers = prayerTimes.filter(p => p.completed && p.name !== "Sunrise").length;
+  
   const stats = [
     {
-      title: "Prayers",
-      value: userData.totalPrayers,
+      title: "Today's Prayers",
+      value: `${completedPrayers}/5`,
       icon: "time-outline",
       color: "#1a472a",
     },
     {
-      title: "Quran Days",
-      value: userData.quranDays,
-      icon: "book-outline",
+      title: "Location",
+      value: location?.city || "Not set",
+      icon: "location-outline",
       color: "#2e7d32",
     },
     {
-      title: "Current Streak",
-      value: `${userData.currentStreak} days`,
-      icon: "flame-outline",
+      title: "Method",
+      value: prayerSettings?.calculationMethod?.slice(0, 8) || "Default",
+      icon: "calculator-outline",
       color: "#f57c00",
     },
     {
-      title: "Longest Streak",
-      value: `${userData.longestStreak} days`,
-      icon: "trophy-outline",
-      color: "#7b1fa2",
+      title: "Status",
+      value: isAuthenticated ? "Synced" : "Local",
+      icon: isAuthenticated ? "cloud-done-outline" : "cloud-offline-outline",
+      color: isAuthenticated ? "#1a472a" : "#888",
     },
   ];
 
-  const toggleSetting = (key: string) => {
-    setUserSettings(prev => ({
-      ...prev,
-      [key]: !prev[key as keyof typeof prev],
-    }));
+  const toggleSetting = async (key: keyof typeof localSettings) => {
+    const newValue = !localSettings[key];
+    setLocalSettings(prev => ({ ...prev, [key]: newValue }));
+    
+    // Persist to context/storage
+    await updateSettings({ [key]: newValue });
   };
+
+  const handleLogin = async () => {
+    // Simple login prompt - in production, use proper auth flow
+    Alert.prompt(
+      "Sign In",
+      "Enter your email to sync your data across devices",
+      async (email) => {
+        if (email && email.includes("@")) {
+          try {
+            await login(email);
+            Alert.alert("Success", "You're now signed in!");
+          } catch (error) {
+            Alert.alert("Error", "Failed to sign in. Please try again.");
+          }
+        }
+      },
+      "plain-text",
+      "",
+      "email-address"
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Sign Out",
+      "Are you sure you want to sign out? Your local data will be preserved.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign Out", style: "destructive", onPress: logout },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1a472a" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -71,15 +105,28 @@ export default function ProfileScreen() {
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {userData.name.split(' ').map(n => n[0]).join('')}
+                {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : "RC"}
               </Text>
             </View>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{userData.name}</Text>
-              <Text style={styles.userEmail}>{userData.email}</Text>
-              <Text style={styles.userLocation}>{userData.location}</Text>
+              <Text style={styles.userName}>{user?.name || "Ramadan Companion"}</Text>
+              <Text style={styles.userEmail}>{user?.email || "Guest User"}</Text>
+              <Text style={styles.userLocation}>
+                {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Location not set"}
+              </Text>
             </View>
           </View>
+          {!isAuthenticated ? (
+            <TouchableOpacity style={styles.signInButton} onPress={handleLogin}>
+              <Ionicons name="log-in-outline" size={20} color="#fff" />
+              <Text style={styles.signInButtonText}>Sign In to Sync</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={20} color="#1a472a" />
+              <Text style={styles.signOutButtonText}>Sign Out</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.statsContainer}>
@@ -103,10 +150,10 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Switch
-              value={userSettings.prayerReminders}
+              value={localSettings.prayerReminders}
               onValueChange={() => toggleSetting('prayerReminders')}
               trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={userSettings.prayerReminders ? "#1a472a" : "#f4f3f4"}
+              thumbColor={localSettings.prayerReminders ? "#1a472a" : "#f4f3f4"}
             />
           </View>
 
@@ -119,10 +166,10 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Switch
-              value={userSettings.quranReminders}
+              value={localSettings.quranReminders}
               onValueChange={() => toggleSetting('quranReminders')}
               trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={userSettings.quranReminders ? "#1a472a" : "#f4f3f4"}
+              thumbColor={localSettings.quranReminders ? "#1a472a" : "#f4f3f4"}
             />
           </View>
 
@@ -135,10 +182,10 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Switch
-              value={userSettings.ramadanReminders}
+              value={localSettings.ramadanReminders}
               onValueChange={() => toggleSetting('ramadanReminders')}
               trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={userSettings.ramadanReminders ? "#1a472a" : "#f4f3f4"}
+              thumbColor={localSettings.ramadanReminders ? "#1a472a" : "#f4f3f4"}
             />
           </View>
         </View>
@@ -154,10 +201,10 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Switch
-              value={userSettings.soundEnabled}
+              value={localSettings.soundEnabled}
               onValueChange={() => toggleSetting('soundEnabled')}
               trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={userSettings.soundEnabled ? "#1a472a" : "#f4f3f4"}
+              thumbColor={localSettings.soundEnabled ? "#1a472a" : "#f4f3f4"}
             />
           </View>
 
@@ -170,10 +217,10 @@ export default function ProfileScreen() {
               </View>
             </View>
             <Switch
-              value={userSettings.vibrationEnabled}
+              value={localSettings.vibrationEnabled}
               onValueChange={() => toggleSetting('vibrationEnabled')}
               trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={userSettings.vibrationEnabled ? "#1a472a" : "#f4f3f4"}
+              thumbColor={localSettings.vibrationEnabled ? "#1a472a" : "#f4f3f4"}
             />
           </View>
         </View>
@@ -184,7 +231,9 @@ export default function ProfileScreen() {
             <Ionicons name="location-outline" size={24} color="#1a472a" />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Location</Text>
-              <Text style={styles.menuValue}>{userData.location}</Text>
+              <Text style={styles.menuValue}>
+                {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Tap to set"}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#888" />
           </TouchableOpacity>
@@ -193,7 +242,7 @@ export default function ProfileScreen() {
             <Ionicons name="language-outline" size={24} color="#1a472a" />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Language</Text>
-              <Text style={styles.menuValue}>English</Text>
+              <Text style={styles.menuValue}>{localSettings.language || "English"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#888" />
           </TouchableOpacity>
@@ -202,7 +251,7 @@ export default function ProfileScreen() {
             <Ionicons name="calculate-outline" size={24} color="#1a472a" />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Calculation Method</Text>
-              <Text style={styles.menuValue}>Muslim World League</Text>
+              <Text style={styles.menuValue}>{prayerSettings?.calculationMethod || "Muslim World League"}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#888" />
           </TouchableOpacity>
@@ -297,6 +346,48 @@ const styles = StyleSheet.create({
   userLocation: {
     fontSize: 12,
     color: "#888",
+  },
+  signInButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1a472a",
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    gap: 8,
+  },
+  signInButtonText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  signOutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#1a472a",
+    padding: 12,
+    marginTop: 12,
+    gap: 8,
+  },
+  signOutButtonText: {
+    color: "#1a472a",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#666",
   },
   statsContainer: {
     flexDirection: "row",
