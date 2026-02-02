@@ -1,7 +1,8 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useState, useEffect, useMemo } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Animated } from "react-native";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useUser } from "../../context/UserContext";
 import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
@@ -16,17 +17,162 @@ interface RamadanDay {
   country: string;
 }
 
+type FastingStatus = "fasted" | "missed" | "excused" | "upcoming";
+
+interface FastingRecord {
+  [day: number]: FastingStatus;
+}
+
+interface DailyDua {
+  arabic: string;
+  transliteration: string;
+  translation: string;
+  occasion: string;
+}
+
+const SEHRI_DUA: DailyDua = {
+  arabic: "وَبِصَوْمِ غَدٍ نَوَيْتُ مِنْ شَهْرِ رَمَضَانَ",
+  transliteration: "Wa bisawmi ghadin nawaytu min shahri ramadan",
+  translation: "I intend to keep the fast for tomorrow in the month of Ramadan",
+  occasion: "Sehri (Before Dawn)",
+};
+
+const IFTAR_DUA: DailyDua = {
+  arabic: "اللَّهُمَّ إِنِّي لَكَ صُمْتُ وَبِكَ آمَنْتُ وَعَلَيْكَ تَوَكَّلْتُ وَعَلَى رِزْقِكَ أَفْطَرْتُ",
+  transliteration: "Allahumma inni laka sumtu wa bika aamantu wa alayka tawakkaltu wa ala rizqika aftartu",
+  translation: "O Allah! I fasted for You, believed in You, trusted in You, and I break my fast with Your sustenance",
+  occasion: "Iftar (Breaking Fast)",
+};
+
+const DAILY_DUAS: DailyDua[] = [
+  {
+    arabic: "رَبِّ اغْفِرْ لِي وَلِوَالِدَيَّ",
+    transliteration: "Rabbi-ghfir lee wa li-waalidayya",
+    translation: "O Lord, forgive me and my parents",
+    occasion: "For Parents",
+  },
+  {
+    arabic: "اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي",
+    transliteration: "Allahumma innaka 'afuwwun tuhibbul 'afwa fa'fu 'anni",
+    translation: "O Allah, You are Forgiving and love forgiveness, so forgive me",
+    occasion: "Laylat al-Qadr",
+  },
+  {
+    arabic: "رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً وَفِي الْآخِرَةِ حَسَنَةً وَقِنَا عَذَابَ النَّارِ",
+    transliteration: "Rabbana aatina fid-dunya hasanatan wa fil-aakhirati hasanatan wa qina 'adhaaban-naar",
+    translation: "Our Lord, give us good in this world and good in the Hereafter, and protect us from the Fire",
+    occasion: "General Supplication",
+  },
+];
+
 // Ramadan 2026 starts approximately Feb 17, 2026 (1447 AH)
 const RAMADAN_START_2026 = new Date(2026, 1, 17);
+const RAMADAN_END_2026 = new Date(2026, 2, 18); // March 18, 2026
+const EID_DATE_2026 = new Date(2026, 2, 19); // March 19, 2026
 const RAMADAN_YEAR_HIJRI = "1447 AH";
+
+const STORAGE_KEY_FASTING = "@ramadan_fasting_record";
+
+type TabType = "today" | "calendar" | "tracker";
 
 export default function CalendarScreen() {
   const { prayerTimes, location, loading: prayerLoading } = usePrayerTimes();
   const { user } = useUser();
   
+  const [activeTab, setActiveTab] = useState<TabType>("today");
   const [currentDay, setCurrentDay] = useState(1);
   const [ramadanDays, setRamadanDays] = useState<RamadanDay[]>([]);
   const [selectedDay, setSelectedDay] = useState<RamadanDay | null>(null);
+  const [fastingRecord, setFastingRecord] = useState<FastingRecord>({});
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [countdownType, setCountdownType] = useState<"ramadan" | "eid" | "active">("active");
+  const [showDua, setShowDua] = useState<"sehri" | "iftar" | null>(null);
+  
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  
+  // Pulse animation for live countdown
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  // Load fasting record
+  useEffect(() => {
+    loadFastingRecord();
+  }, []);
+
+  const loadFastingRecord = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(STORAGE_KEY_FASTING);
+      if (saved) {
+        setFastingRecord(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error("Error loading fasting record:", error);
+    }
+  };
+
+  const saveFastingRecord = async (record: FastingRecord) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_FASTING, JSON.stringify(record));
+      setFastingRecord(record);
+    } catch (error) {
+      console.error("Error saving fasting record:", error);
+    }
+  };
+
+  const updateFastingStatus = useCallback((day: number, status: FastingStatus) => {
+    const newRecord = { ...fastingRecord, [day]: status };
+    saveFastingRecord(newRecord);
+  }, [fastingRecord]);
+
+  // Countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      let targetDate: Date;
+      let type: "ramadan" | "eid" | "active";
+      
+      if (now < RAMADAN_START_2026) {
+        targetDate = RAMADAN_START_2026;
+        type = "ramadan";
+      } else if (now >= RAMADAN_START_2026 && now <= RAMADAN_END_2026) {
+        targetDate = EID_DATE_2026;
+        type = "active";
+      } else {
+        targetDate = EID_DATE_2026;
+        type = "eid";
+      }
+      
+      const diff = targetDate.getTime() - now.getTime();
+      
+      if (diff > 0) {
+        setCountdown({
+          days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+          minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((diff % (1000 * 60)) / 1000),
+        });
+      }
+      setCountdownType(type);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Calculate actual Ramadan day based on current date
   useEffect(() => {
@@ -99,6 +245,30 @@ export default function CalendarScreen() {
     endDate.setDate(endDate.getDate() + 30);
     return today >= RAMADAN_START_2026 && today <= endDate;
   }, []);
+
+  // Fasting statistics
+  const fastingStats = useMemo(() => {
+    const fasted = Object.values(fastingRecord).filter(s => s === "fasted").length;
+    const missed = Object.values(fastingRecord).filter(s => s === "missed").length;
+    const excused = Object.values(fastingRecord).filter(s => s === "excused").length;
+    const total = Math.min(currentDay, 30);
+    return { fasted, missed, excused, total };
+  }, [fastingRecord, currentDay]);
+
+  const getFastingStatusIcon = (status: FastingStatus) => {
+    switch (status) {
+      case "fasted": return { icon: "checkmark-circle", color: colors.success };
+      case "missed": return { icon: "close-circle", color: colors.error };
+      case "excused": return { icon: "pause-circle", color: colors.warning };
+      default: return { icon: "ellipse-outline", color: colors.textMuted };
+    }
+  };
+
+  const tabs: { key: TabType; label: string; icon: string }[] = [
+    { key: "today", label: "Today", icon: "today-outline" },
+    { key: "calendar", label: "Calendar", icon: "calendar-outline" },
+    { key: "tracker", label: "Tracker", icon: "checkbox-outline" },
+  ];
 
   if (prayerLoading) {
     return (
