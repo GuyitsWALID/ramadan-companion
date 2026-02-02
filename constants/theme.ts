@@ -1,5 +1,6 @@
 // Modern Islamic-inspired color palette
-export const colors = {
+// Light mode colors (default)
+export const lightColors = {
   // Primary colors
   primary: "#0D5C4D",      // Deep teal - main brand color
   primaryLight: "#1A8A75", // Lighter teal
@@ -39,6 +40,61 @@ export const colors = {
   overlay: "rgba(0, 0, 0, 0.5)",
   shadow: "rgba(0, 0, 0, 0.08)",
 };
+
+// Dark mode colors
+export const darkColors = {
+  // Primary colors (slightly brighter for dark mode)
+  primary: "#1A9A80",      // Brighter teal for dark mode
+  primaryLight: "#2ABFA0", // Even lighter
+  primaryDark: "#0D5C4D",  // Original as dark
+  
+  // Secondary colors (gold works well in both modes)
+  secondary: "#E5C767",    // Brighter gold
+  secondaryLight: "#F5D87D",
+  secondaryDark: "#D4AF37",
+  
+  // Accent colors
+  accent: "#4CAF7D",       // Brighter emerald
+  accentLight: "#6BCF9D",
+  
+  // Backgrounds - dark surfaces
+  background: "#0F1419",   // Very dark blue-gray
+  surface: "#1A1F26",      // Dark card background
+  surfaceElevated: "#242B35",  // Elevated surface
+  
+  // Text colors - inverted for dark mode
+  text: "#F7FAFC",         // Off-white for primary text
+  textSecondary: "#A0AEC0", // Light gray for secondary
+  textMuted: "#718096",    // Muted text
+  textOnPrimary: "#FFFFFF", // White stays white
+  
+  // Status colors (slightly adjusted for dark mode visibility)
+  success: "#34D399",
+  warning: "#FBBF24",
+  error: "#F87171",
+  info: "#60A5FA",
+  
+  // Border colors - darker variants
+  border: "#2D3748",
+  borderLight: "#1E2530",
+  
+  // Special
+  overlay: "rgba(0, 0, 0, 0.7)",
+  shadow: "rgba(0, 0, 0, 0.3)",
+};
+
+// Default to light colors (will be dynamically swapped by ThemeContext)
+export let colors = { ...lightColors };
+
+// Function to update colors based on theme
+export function setThemeColors(isDark: boolean): void {
+  colors = isDark ? darkColors : lightColors;
+}
+
+// Get colors for a specific theme
+export function getThemeColors(isDark: boolean): typeof lightColors {
+  return isDark ? darkColors : lightColors;
+}
 
 // Typography using Inter font
 export const typography = {
@@ -86,30 +142,36 @@ export const borderRadius = {
   full: 9999,
 };
 
-// Shadows
-export const shadows = {
-  sm: {
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 1,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  md: {
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  lg: {
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 16,
-    elevation: 6,
-  },
+// Shadows (these will use colors dynamically)
+export const getShadows = (isDark: boolean) => {
+  const shadowColor = isDark ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.08)";
+  return {
+    sm: {
+      shadowColor,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 1,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    md: {
+      shadowColor,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 1,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    lg: {
+      shadowColor,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 1,
+      shadowRadius: 16,
+      elevation: 6,
+    },
+  };
 };
+
+// Default shadows (light mode)
+export const shadows = getShadows(false);
 
 // Common component styles
 export const commonStyles = {

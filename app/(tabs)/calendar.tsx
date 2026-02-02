@@ -281,134 +281,438 @@ export default function CalendarScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Ramadan Calendar</Text>
-          <Text style={styles.subtitle}>{RAMADAN_YEAR_HIJRI} / 2026 CE</Text>
-          {selectedDay && (
-            <Text style={styles.locationText}>
-              📍 {selectedDay.city}{selectedDay.country ? `, ${selectedDay.country}` : ""}
-            </Text>
-          )}
+  const renderTodayTab = () => (
+    <>
+      {/* Countdown Card */}
+      <Animated.View style={[styles.countdownCard, { transform: [{ scale: pulseAnim }] }]}>
+        <View style={styles.countdownHeader}>
+          <Ionicons 
+            name={countdownType === "active" ? "moon" : "calendar"} 
+            size={28} 
+            color={colors.textOnPrimary} 
+          />
+          <Text style={styles.countdownTitle}>
+            {countdownType === "ramadan" 
+              ? "Countdown to Ramadan" 
+              : countdownType === "active"
+                ? "Ramadan in Progress"
+                : "Countdown to Eid"
+            }
+          </Text>
+        </View>
+        <View style={styles.countdownRow}>
+          <View style={styles.countdownItem}>
+            <Text style={styles.countdownNumber}>{countdown.days}</Text>
+            <Text style={styles.countdownLabel}>Days</Text>
+          </View>
+          <Text style={styles.countdownSeparator}>:</Text>
+          <View style={styles.countdownItem}>
+            <Text style={styles.countdownNumber}>{String(countdown.hours).padStart(2, '0')}</Text>
+            <Text style={styles.countdownLabel}>Hours</Text>
+          </View>
+          <Text style={styles.countdownSeparator}>:</Text>
+          <View style={styles.countdownItem}>
+            <Text style={styles.countdownNumber}>{String(countdown.minutes).padStart(2, '0')}</Text>
+            <Text style={styles.countdownLabel}>Mins</Text>
+          </View>
+          <Text style={styles.countdownSeparator}>:</Text>
+          <View style={styles.countdownItem}>
+            <Text style={styles.countdownNumber}>{String(countdown.seconds).padStart(2, '0')}</Text>
+            <Text style={styles.countdownLabel}>Secs</Text>
+          </View>
+        </View>
+      </Animated.View>
+
+      {/* Current Day Card */}
+      <View style={styles.currentDayCard}>
+        <View style={styles.currentDayHeader}>
+          <View style={styles.dayNumberContainer}>
+            <Text style={styles.dayNumber}>{currentDay}</Text>
+          </View>
+          <View style={styles.currentDayInfo}>
+            <Text style={styles.currentDayTitle}>Day {currentDay} of Ramadan</Text>
+            <Text style={styles.currentDate}>{selectedDay?.date}</Text>
+            <Text style={styles.daysLeft}>{getDaysLeft()} days remaining</Text>
+          </View>
+        </View>
+        
+        <View style={styles.timingsRow}>
+          <TouchableOpacity 
+            style={styles.timingCard}
+            onPress={() => setShowDua(showDua === "sehri" ? null : "sehri")}
+          >
+            <Ionicons name="moon-outline" size={24} color={colors.textOnPrimary} />
+            <Text style={styles.timingTitle}>Sehri</Text>
+            <Text style={styles.timingTime}>{selectedDay?.sehriTime}</Text>
+            <Text style={styles.timingHint}>Tap for dua</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.timingCard}
+            onPress={() => setShowDua(showDua === "iftar" ? null : "iftar")}
+          >
+            <Ionicons name="sunset-outline" size={24} color={colors.textOnPrimary} />
+            <Text style={styles.timingTitle}>Iftar</Text>
+            <Text style={styles.timingTime}>{selectedDay?.iftarTime}</Text>
+            <Text style={styles.timingHint}>Tap for dua</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.currentDayCard}>
-          <View style={styles.currentDayHeader}>
-            <View style={styles.dayNumberContainer}>
-              <Text style={styles.dayNumber}>{currentDay}</Text>
-            </View>
-            <View style={styles.currentDayInfo}>
-              <Text style={styles.currentDayTitle}>Day {currentDay} of Ramadan</Text>
-              <Text style={styles.currentDate}>{selectedDay?.date}</Text>
-              <Text style={styles.daysLeft}>{getDaysLeft()} days remaining</Text>
-            </View>
+        {specialEvents[currentDay as keyof typeof specialEvents] && (
+          <View style={styles.eventCard}>
+            <Ionicons name="star" size={20} color={colors.secondary} />
+            <Text style={styles.eventText}>
+              {specialEvents[currentDay as keyof typeof specialEvents]}
+            </Text>
           </View>
-          
-          <View style={styles.timingsRow}>
-            <View style={styles.timingCard}>
-              <Ionicons name="moon-outline" size={24} color={colors.textOnPrimary} />
-              <Text style={styles.timingTitle}>Sehri</Text>
-              <Text style={styles.timingTime}>{selectedDay?.sehriTime}</Text>
-            </View>
-            <View style={styles.timingCard}>
-              <Ionicons name="sunset-outline" size={24} color={colors.textOnPrimary} />
-              <Text style={styles.timingTitle}>Iftar</Text>
-              <Text style={styles.timingTime}>{selectedDay?.iftarTime}</Text>
-            </View>
-          </View>
+        )}
+      </View>
 
-          {specialEvents[currentDay as keyof typeof specialEvents] && (
-            <View style={styles.eventCard}>
-              <Ionicons name="star" size={20} color={colors.secondary} />
-              <Text style={styles.eventText}>
-                {specialEvents[currentDay as keyof typeof specialEvents]}
+      {/* Dua Card */}
+      {showDua && (
+        <View style={styles.duaCard}>
+          <View style={styles.duaHeader}>
+            <Ionicons name="book-outline" size={24} color={colors.primary} />
+            <Text style={styles.duaOccasion}>
+              {showDua === "sehri" ? SEHRI_DUA.occasion : IFTAR_DUA.occasion}
+            </Text>
+            <TouchableOpacity onPress={() => setShowDua(null)}>
+              <Ionicons name="close-circle" size={24} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.duaArabic}>
+            {showDua === "sehri" ? SEHRI_DUA.arabic : IFTAR_DUA.arabic}
+          </Text>
+          <Text style={styles.duaTransliteration}>
+            {showDua === "sehri" ? SEHRI_DUA.transliteration : IFTAR_DUA.transliteration}
+          </Text>
+          <Text style={styles.duaTranslation}>
+            {showDua === "sehri" ? SEHRI_DUA.translation : IFTAR_DUA.translation}
+          </Text>
+        </View>
+      )}
+
+      {/* Daily Duas Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Daily Duas</Text>
+        {DAILY_DUAS.map((dua, index) => (
+          <View key={index} style={styles.dailyDuaCard}>
+            <View style={styles.dailyDuaHeader}>
+              <Ionicons name="heart" size={16} color={colors.secondary} />
+              <Text style={styles.dailyDuaOccasion}>{dua.occasion}</Text>
+            </View>
+            <Text style={styles.dailyDuaArabic}>{dua.arabic}</Text>
+            <Text style={styles.dailyDuaTransliteration}>{dua.transliteration}</Text>
+            <Text style={styles.dailyDuaTranslation}>{dua.translation}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Reminders Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Ramadan Reminders</Text>
+        <View style={styles.reminderItem}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={styles.reminderText}>Complete daily prayers on time</Text>
+        </View>
+        <View style={styles.reminderItem}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={styles.reminderText}>Read Quran daily (minimum 20 verses)</Text>
+        </View>
+        <View style={styles.reminderItem}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={styles.reminderText}>Increase charity and good deeds</Text>
+        </View>
+        <View style={styles.reminderItem}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={styles.reminderText}>Make dua during blessed nights</Text>
+        </View>
+      </View>
+    </>
+  );
+
+  const renderCalendarTab = () => (
+    <>
+      {/* Month View Header */}
+      <View style={styles.calendarHeader}>
+        <Text style={styles.calendarMonthTitle}>Ramadan {RAMADAN_YEAR_HIJRI}</Text>
+        <Text style={styles.calendarSubtitle}>
+          Feb 17 - Mar 18, 2026
+        </Text>
+      </View>
+
+      {/* Days Grid */}
+      <View style={styles.calendarGrid}>
+        <View style={styles.weekdayRow}>
+          {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+            <Text key={i} style={styles.weekdayText}>{day}</Text>
+          ))}
+        </View>
+        <View style={styles.daysGrid}>
+          {ramadanDays.map((day) => {
+            const status = fastingRecord[day.dayNumber] || "upcoming";
+            const statusInfo = getFastingStatusIcon(status);
+            const isToday = day.dayNumber === currentDay;
+            const isSpecial = !!specialEvents[day.dayNumber];
+            
+            return (
+              <TouchableOpacity
+                key={day.dayNumber}
+                style={[
+                  styles.calendarDayCell,
+                  isToday && styles.calendarDayCellToday,
+                  isSpecial && styles.calendarDayCellSpecial,
+                ]}
+                onPress={() => {
+                  setCurrentDay(day.dayNumber);
+                  setSelectedDay(day);
+                }}
+              >
+                <Text style={[
+                  styles.calendarDayNumber,
+                  isToday && styles.calendarDayNumberToday,
+                ]}>
+                  {day.dayNumber}
+                </Text>
+                {status !== "upcoming" && (
+                  <Ionicons 
+                    name={statusInfo.icon as any} 
+                    size={12} 
+                    color={statusInfo.color} 
+                    style={styles.calendarDayStatus}
+                  />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Selected Day Details */}
+      {selectedDay && (
+        <View style={styles.selectedDayCard}>
+          <View style={styles.selectedDayHeader}>
+            <Text style={styles.selectedDayTitle}>Day {selectedDay.dayNumber}</Text>
+            <Text style={styles.selectedDayDate}>{selectedDay.date}</Text>
+          </View>
+          <View style={styles.selectedDayTimings}>
+            <View style={styles.selectedDayTiming}>
+              <Ionicons name="moon-outline" size={20} color={colors.primary} />
+              <View>
+                <Text style={styles.selectedDayTimingLabel}>Sehri</Text>
+                <Text style={styles.selectedDayTimingTime}>{selectedDay.sehriTime}</Text>
+              </View>
+            </View>
+            <View style={styles.selectedDayTiming}>
+              <Ionicons name="sunset-outline" size={20} color={colors.secondary} />
+              <View>
+                <Text style={styles.selectedDayTimingLabel}>Iftar</Text>
+                <Text style={styles.selectedDayTimingTime}>{selectedDay.iftarTime}</Text>
+              </View>
+            </View>
+          </View>
+          {specialEvents[selectedDay.dayNumber] && (
+            <View style={styles.selectedDayEvent}>
+              <Ionicons name="star" size={16} color={colors.secondary} />
+              <Text style={styles.selectedDayEventText}>
+                {specialEvents[selectedDay.dayNumber]}
               </Text>
             </View>
           )}
         </View>
+      )}
 
-        <View style={styles.navigationContainer}>
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => setCurrentDay(Math.max(1, currentDay - 1))}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.primary} />
-            <Text style={styles.navButtonText}>Previous</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => setCurrentDay(Math.min(30, currentDay + 1))}
-          >
-            <Text style={styles.navButtonText}>Next</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-          </TouchableOpacity>
+      {/* Upcoming Events */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Upcoming Events</Text>
+        {Object.entries(specialEvents).map(([day, event]) => {
+          const dayNum = parseInt(day);
+          if (dayNum > currentDay) {
+            return (
+              <View key={day} style={styles.eventItem}>
+                <View style={styles.eventIndicator}>
+                  <Text style={styles.eventDay}>Day {dayNum}</Text>
+                </View>
+                <Text style={styles.eventName}>{event}</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+              </View>
+            );
+          }
+          return null;
+        })}
+      </View>
+    </>
+  );
+
+  const renderTrackerTab = () => (
+    <>
+      {/* Stats Overview */}
+      <View style={styles.trackerStatsCard}>
+        <Text style={styles.trackerStatsTitle}>Fasting Statistics</Text>
+        <View style={styles.trackerStatsRow}>
+          <View style={styles.trackerStatItem}>
+            <View style={[styles.trackerStatIcon, { backgroundColor: colors.success + "20" }]}>
+              <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+            </View>
+            <Text style={styles.trackerStatNumber}>{fastingStats.fasted}</Text>
+            <Text style={styles.trackerStatLabel}>Fasted</Text>
+          </View>
+          <View style={styles.trackerStatItem}>
+            <View style={[styles.trackerStatIcon, { backgroundColor: colors.error + "20" }]}>
+              <Ionicons name="close-circle" size={24} color={colors.error} />
+            </View>
+            <Text style={styles.trackerStatNumber}>{fastingStats.missed}</Text>
+            <Text style={styles.trackerStatLabel}>Missed</Text>
+          </View>
+          <View style={styles.trackerStatItem}>
+            <View style={[styles.trackerStatIcon, { backgroundColor: colors.warning + "20" }]}>
+              <Ionicons name="pause-circle" size={24} color={colors.warning} />
+            </View>
+            <Text style={styles.trackerStatNumber}>{fastingStats.excused}</Text>
+            <Text style={styles.trackerStatLabel}>Excused</Text>
+          </View>
         </View>
+        
+        {/* Progress Bar */}
+        <View style={styles.trackerProgressContainer}>
+          <View style={styles.trackerProgressBar}>
+            <View 
+              style={[
+                styles.trackerProgressFill, 
+                { width: `${(fastingStats.fasted / 30) * 100}%` }
+              ]} 
+            />
+          </View>
+          <Text style={styles.trackerProgressText}>
+            {fastingStats.fasted} of 30 days completed
+          </Text>
+        </View>
+      </View>
 
-        <View style={styles.calendarGrid}>
-          <Text style={styles.gridTitle}>Ramadan Overview</Text>
-          <View style={styles.daysGrid}>
-            {ramadanDays.map((day) => (
+      {/* Day by Day Tracker */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Daily Tracker</Text>
+        <Text style={styles.sectionSubtitle}>Tap to update each day's status</Text>
+        
+        <View style={styles.trackerGrid}>
+          {ramadanDays.map((day) => {
+            const status = fastingRecord[day.dayNumber] || (day.dayNumber <= currentDay ? "upcoming" : "upcoming");
+            const statusInfo = getFastingStatusIcon(status);
+            const isPast = day.dayNumber <= currentDay;
+            
+            return (
               <TouchableOpacity
                 key={day.dayNumber}
                 style={[
-                  styles.dayCell,
-                  day.dayNumber === currentDay && styles.selectedDayCell,
-                  specialEvents[day.dayNumber as keyof typeof specialEvents] && styles.specialDayCell,
+                  styles.trackerDayCard,
+                  !isPast && styles.trackerDayCardFuture,
                 ]}
-                onPress={() => setCurrentDay(day.dayNumber)}
+                onPress={() => {
+                  if (isPast) {
+                    // Cycle through statuses
+                    const statusOrder: FastingStatus[] = ["fasted", "missed", "excused", "upcoming"];
+                    const currentIndex = statusOrder.indexOf(status);
+                    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length];
+                    updateFastingStatus(day.dayNumber, nextStatus);
+                  }
+                }}
+                disabled={!isPast}
               >
                 <Text style={[
-                  styles.dayCellText,
-                  day.dayNumber === currentDay && styles.selectedDayCellText,
+                  styles.trackerDayNumber,
+                  !isPast && styles.trackerDayNumberFuture,
                 ]}>
-                  {day.dayNumber}
+                  Day {day.dayNumber}
+                </Text>
+                <Ionicons 
+                  name={statusInfo.icon as any} 
+                  size={32} 
+                  color={isPast ? statusInfo.color : colors.textMuted} 
+                />
+                <Text style={[
+                  styles.trackerDayStatus,
+                  { color: isPast ? statusInfo.color : colors.textMuted },
+                ]}>
+                  {status === "upcoming" ? (isPast ? "Tap to mark" : "Upcoming") : status.charAt(0).toUpperCase() + status.slice(1)}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Upcoming Events</Text>
-          {Object.entries(specialEvents).map(([day, event]) => {
-            const dayNum = parseInt(day);
-            if (dayNum > currentDay) {
-              return (
-                <View key={day} style={styles.eventItem}>
-                  <View style={styles.eventIndicator}>
-                    <Text style={styles.eventDay}>Day {dayNum}</Text>
-                  </View>
-                  <Text style={styles.eventName}>{event}</Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-                </View>
-              );
-            }
-            return null;
+            );
           })}
         </View>
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ramadan Reminders</Text>
-          <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.reminderText}>Complete daily prayers on time</Text>
+      {/* Make-up Days Info */}
+      {fastingStats.missed > 0 && (
+        <View style={styles.makeupCard}>
+          <View style={styles.makeupHeader}>
+            <Ionicons name="information-circle" size={24} color={colors.warning} />
+            <Text style={styles.makeupTitle}>Make-up Fasts Required</Text>
           </View>
-          <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.reminderText}>Read Quran daily (minimum 20 verses)</Text>
-          </View>
-          <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.reminderText}>Increase charity and good deeds</Text>
-          </View>
-          <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
-            <Text style={styles.reminderText}>Make dua during blessed nights</Text>
-          </View>
+          <Text style={styles.makeupText}>
+            You have {fastingStats.missed} missed fast{fastingStats.missed > 1 ? 's' : ''} to make up after Ramadan.
+          </Text>
+          <Text style={styles.makeupNote}>
+            Make-up fasts can be completed anytime before the next Ramadan.
+          </Text>
         </View>
+      )}
+
+      {/* Excused Days Info */}
+      {fastingStats.excused > 0 && (
+        <View style={styles.excusedCard}>
+          <View style={styles.excusedHeader}>
+            <Ionicons name="help-circle" size={24} color={colors.primary} />
+            <Text style={styles.excusedTitle}>About Excused Fasts</Text>
+          </View>
+          <Text style={styles.excusedText}>
+            You have {fastingStats.excused} excused day{fastingStats.excused > 1 ? 's' : ''}.
+          </Text>
+          <Text style={styles.excusedNote}>
+            Excused fasts (illness, travel, etc.) should be made up when possible, or Fidya given if unable.
+          </Text>
+        </View>
+      )}
+    </>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Ramadan Calendar</Text>
+        <Text style={styles.subtitle}>{RAMADAN_YEAR_HIJRI} / 2026 CE</Text>
+        {selectedDay && (
+          <Text style={styles.locationText}>
+            📍 {selectedDay.city}{selectedDay.country ? `, ${selectedDay.country}` : ""}
+          </Text>
+        )}
+      </View>
+
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Ionicons
+              name={tab.icon as any}
+              size={20}
+              color={activeTab === tab.key ? colors.primary : colors.textMuted}
+            />
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {activeTab === "today" && renderTodayTab()}
+        {activeTab === "calendar" && renderCalendarTab()}
+        {activeTab === "tracker" && renderTrackerTab()}
+        
+        <View style={{ height: spacing.xxl }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -424,7 +728,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   header: {
-    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    marginBottom: spacing.md,
   },
   title: {
     fontSize: typography.sizes.xxxl,
@@ -454,6 +760,87 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
   },
+  
+  // Tab Navigation
+  tabContainer: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+  },
+  tabActive: {
+    backgroundColor: colors.primary + "15",
+    borderWidth: 1,
+    borderColor: colors.primary + "30",
+  },
+  tabText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.textMuted,
+  },
+  tabTextActive: {
+    color: colors.primary,
+    fontFamily: typography.fonts.semiBold,
+  },
+
+  // Countdown Card
+  countdownCard: {
+    backgroundColor: colors.secondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    ...shadows.lg,
+  },
+  countdownHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  countdownTitle: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+  },
+  countdownRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  countdownItem: {
+    alignItems: "center",
+    minWidth: 50,
+  },
+  countdownNumber: {
+    fontSize: typography.sizes.xxxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
+  },
+  countdownLabel: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
+    opacity: 0.8,
+  },
+  countdownSeparator: {
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
+    marginHorizontal: spacing.xs,
+  },
+
+  // Current Day Card
   currentDayCard: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.xl,
@@ -527,6 +914,13 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.bold,
     color: colors.textOnPrimary,
   },
+  timingHint: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
+    opacity: 0.6,
+    marginTop: spacing.xs,
+  },
   eventCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -542,65 +936,380 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     marginLeft: spacing.sm,
   },
-  navigationContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.xl,
-  },
-  navButton: {
-    flexDirection: "row",
-    alignItems: "center",
+
+  // Dua Card
+  duaCard: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.primary + "20",
     ...shadows.md,
   },
-  navButtonText: {
-    fontSize: typography.sizes.sm,
+  duaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.lg,
+    gap: spacing.sm,
+  },
+  duaOccasion: {
+    flex: 1,
+    fontSize: typography.sizes.md,
     fontFamily: typography.fonts.semiBold,
     color: colors.primary,
-    marginHorizontal: spacing.xs,
+  },
+  duaArabic: {
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.regular,
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: spacing.md,
+    lineHeight: 40,
+  },
+  duaTransliteration: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.medium,
+    fontStyle: "italic",
+    color: colors.textSecondary,
+    textAlign: "center",
+    marginBottom: spacing.sm,
+  },
+  duaTranslation: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+
+  // Daily Duas
+  dailyDuaCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+    ...shadows.sm,
+  },
+  dailyDuaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    gap: spacing.xs,
+  },
+  dailyDuaOccasion: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.secondary,
+  },
+  dailyDuaArabic: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.regular,
+    color: colors.text,
+    textAlign: "right",
+    marginBottom: spacing.sm,
+    lineHeight: 32,
+  },
+  dailyDuaTransliteration: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    fontStyle: "italic",
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  dailyDuaTranslation: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+  },
+
+  // Calendar Tab
+  calendarHeader: {
+    alignItems: "center",
+    marginBottom: spacing.xl,
+  },
+  calendarMonthTitle: {
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
+  },
+  calendarSubtitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
   },
   calendarGrid: {
     marginBottom: spacing.xl,
   },
-  gridTitle: {
-    fontSize: typography.sizes.lg,
+  weekdayRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: spacing.md,
+  },
+  weekdayText: {
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-    marginBottom: spacing.lg,
+    color: colors.textMuted,
+    width: 40,
+    textAlign: "center",
   },
   daysGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
+    gap: spacing.xs,
   },
-  dayCell: {
-    width: "15%",
-    aspectRatio: 1,
+  calendarDayCell: {
+    width: 44,
+    height: 56,
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: spacing.sm,
     ...shadows.sm,
   },
-  selectedDayCell: {
+  calendarDayCellToday: {
     backgroundColor: colors.primary,
   },
-  specialDayCell: {
+  calendarDayCellSpecial: {
     borderWidth: 2,
     borderColor: colors.secondary,
   },
-  dayCellText: {
-    fontSize: typography.sizes.xs,
+  calendarDayNumber: {
+    fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.semiBold,
     color: colors.text,
   },
-  selectedDayCellText: {
+  calendarDayNumberToday: {
     color: colors.textOnPrimary,
   },
+  calendarDayStatus: {
+    marginTop: 2,
+  },
+
+  // Selected Day Card
+  selectedDayCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+    ...shadows.md,
+  },
+  selectedDayHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  selectedDayTitle: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+  },
+  selectedDayDate: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+  },
+  selectedDayTimings: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: spacing.md,
+  },
+  selectedDayTiming: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  selectedDayTimingLabel: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+  },
+  selectedDayTimingTime: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+  },
+  selectedDayEvent: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.secondary + "15",
+    borderRadius: borderRadius.sm,
+    padding: spacing.sm,
+    gap: spacing.xs,
+  },
+  selectedDayEventText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.medium,
+    color: colors.secondary,
+  },
+
+  // Tracker Tab
+  trackerStatsCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    ...shadows.md,
+  },
+  trackerStatsTitle: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: spacing.lg,
+  },
+  trackerStatsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: spacing.xl,
+  },
+  trackerStatItem: {
+    alignItems: "center",
+  },
+  trackerStatIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+  },
+  trackerStatNumber: {
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+  },
+  trackerStatLabel: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+  },
+  trackerProgressContainer: {
+    alignItems: "center",
+  },
+  trackerProgressBar: {
+    width: "100%",
+    height: 12,
+    backgroundColor: colors.border,
+    borderRadius: 6,
+    overflow: "hidden",
+    marginBottom: spacing.sm,
+  },
+  trackerProgressFill: {
+    height: "100%",
+    backgroundColor: colors.success,
+    borderRadius: 6,
+  },
+  trackerProgressText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.textSecondary,
+  },
+
+  // Tracker Grid
+  trackerGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  trackerDayCard: {
+    width: "31%",
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: "center",
+    ...shadows.sm,
+    marginBottom: spacing.xs,
+  },
+  trackerDayCardFuture: {
+    opacity: 0.5,
+  },
+  trackerDayNumber: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  trackerDayNumberFuture: {
+    color: colors.textMuted,
+  },
+  trackerDayStatus: {
+    fontSize: typography.sizes.xxs,
+    fontFamily: typography.fonts.regular,
+    marginTop: spacing.xs,
+  },
+
+  // Make-up Card
+  makeupCard: {
+    backgroundColor: colors.warning + "15",
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.warning + "30",
+  },
+  makeupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  makeupTitle: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.warning,
+  },
+  makeupText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  makeupNote: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+  },
+
+  // Excused Card
+  excusedCard: {
+    backgroundColor: colors.primary + "10",
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.primary + "20",
+  },
+  excusedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  excusedTitle: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.primary,
+  },
+  excusedText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  excusedNote: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+  },
+
+  // Sections
   section: {
     marginBottom: spacing.xl,
   },
@@ -610,6 +1319,15 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.lg,
   },
+  sectionSubtitle: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+    marginTop: -spacing.md,
+    marginBottom: spacing.lg,
+  },
+
+  // Events
   eventItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -636,6 +1354,8 @@ const styles = StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.text,
   },
+
+  // Reminders
   reminderItem: {
     flexDirection: "row",
     alignItems: "center",

@@ -12,8 +12,11 @@ import {
 } from "@expo-google-fonts/inter";
 import { UserProvider } from "../context/UserContext";
 import { AuthProvider, useAuth } from "../context/AuthContext";
-import { colors } from "../constants/theme";
+import { NetworkProvider, useNetwork } from "../context/NetworkContext";
+import { ThemeProvider, useTheme } from "../context/ThemeContext";
+import { lightColors as colors } from "../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { OfflineBanner } from "../components/OfflineBanner";
 
 // 1. Initialize Convex
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
@@ -48,6 +51,33 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Offline banner wrapper
+function OfflineBannerWrapper({ children }: { children: React.ReactNode }) {
+  const { 
+    isOffline, 
+    showOfflineBanner, 
+    dismissBanner, 
+    offlineQueueSize, 
+    syncPending,
+    syncOfflineActions,
+    lastSyncTime 
+  } = useNetwork();
+
+  return (
+    <View style={{ flex: 1 }}>
+      <OfflineBanner
+        isOffline={showOfflineBanner}
+        onDismiss={dismissBanner}
+        pendingActions={offlineQueueSize}
+        syncPending={syncPending}
+        onSync={syncOfflineActions}
+        lastSyncTime={lastSyncTime}
+      />
+      {children}
+    </View>
+  );
+}
+
 export default function RootLayout() {
   // 3. Load Inter Fonts
   const [fontsLoaded, fontError] = useFonts({
@@ -79,17 +109,24 @@ export default function RootLayout() {
   // 6. App Content with Auth Flow
   return (
     <ConvexProvider client={convex}>
-      <AuthProvider>
-        <UserProvider>
-          <NavigationGuard>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="support" options={{ presentation: "modal" }} />
-            </Stack>
-          </NavigationGuard>
-        </UserProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <UserProvider>
+            <NetworkProvider>
+              <NavigationGuard>
+                <OfflineBannerWrapper>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="support" options={{ presentation: "modal" }} />
+                    <Stack.Screen name="widgets" options={{ presentation: "modal" }} />
+                  </Stack>
+                </OfflineBannerWrapper>
+              </NavigationGuard>
+            </NetworkProvider>
+          </UserProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ConvexProvider>
   );
 }
