@@ -204,7 +204,9 @@ export default function PrayerScreen() {
       <Text style={styles.qiblaSectionTitle}>Qibla Direction</Text>
       <Text style={styles.qiblaSubtitle}>Face towards the Kaaba in Mecca</Text>
       <QiblaCompass 
-        userLocation={location ? { latitude: location.latitude, longitude: location.longitude } : undefined} 
+        userLocation={location ? { latitude: location.latitude, longitude: location.longitude } : undefined}
+        colors={colors}
+        shadows={shadows}
       />
     </View>
   );

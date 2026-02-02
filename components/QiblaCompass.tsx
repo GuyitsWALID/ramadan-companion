@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,25 +9,30 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { colors, typography, spacing, borderRadius, shadows } from "../constants/theme";
+import { Magnetometer } from "expo-sensors";
+import { typography, spacing, borderRadius } from "../constants/theme";
 
 interface QiblaCompassProps {
   userLocation?: {
     latitude: number;
     longitude: number;
   };
+  colors: any;
+  shadows: any;
 }
 
 // Kaaba coordinates
 const KAABA_LAT = 21.4225;
 const KAABA_LNG = 39.8262;
 
-export default function QiblaCompass({ userLocation }: QiblaCompassProps) {
+export default function QiblaCompass({ userLocation, colors, shadows }: QiblaCompassProps) {
   const [qiblaDirection, setQiblaDirection] = useState<number>(0);
   const [compassHeading, setCompassHeading] = useState<number>(0);
-  const [hasPermission, setHasPermission] = useState<boolean>(false);
+  const [hasMagnetometer, setHasMagnetometer] = useState<boolean>(false);
   const [isCalibrated, setIsCalibrated] = useState<boolean>(false);
-  const rotateAnim = useState(new Animated.Value(0))[0];
+  const [magnetometerData, setMagnetometerData] = useState<{ x: number; y: number; z: number } | null>(null);
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const compassRotateAnim = useRef(new Animated.Value(0)).current;
 
   // Calculate Qibla direction from user's location
   const calculateQiblaDirection = (lat: number, lng: number): number => {
@@ -73,40 +78,71 @@ export default function QiblaCompass({ userLocation }: QiblaCompassProps) {
     }
   }, [userLocation]);
 
-  useEffect(() => {
-    let subscription: Location.LocationSubscription | null = null;
+  // Calculate compass heading from magnetometer data
+  const calculateHeading = (x: number, y: number): number => {
+    let heading = Math.atan2(y, x) * (180 / Math.PI);
+    // Adjust for magnetic declination and orientation
+    heading = (heading + 360) % 360;
+    // Convert to compass bearing (0 = North)
+    heading = (360 - heading + 90) % 360;
+    return heading;
+  };
 
-    const startCompass = async () => {
+  useEffect(() => {
+    let subscription: { remove: () => void } | null = null;
+
+    const startMagnetometer = async () => {
       if (Platform.OS === "web") {
-        // Web doesn't support magnetometer
-        setHasPermission(false);
+        setHasMagnetometer(false);
         return;
       }
 
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          setHasPermission(false);
+        // Check if magnetometer is available
+        const isAvailable = await Magnetometer.isAvailableAsync();
+        if (!isAvailable) {
+          setHasMagnetometer(false);
+          console.log("Magnetometer not available on this device");
           return;
         }
 
-        setHasPermission(true);
+        setHasMagnetometer(true);
 
-        // Note: expo-location doesn't have magnetometer, so we simulate
-        // In production, you'd use expo-sensors Magnetometer
-        // For now, show static Qibla direction
+        // Set update interval (in ms)
+        Magnetometer.setUpdateInterval(100);
+
+        // Subscribe to magnetometer updates
+        subscription = Magnetometer.addListener((data) => {
+          setMagnetometerData(data);
+          const heading = calculateHeading(data.x, data.y);
+          setCompassHeading(heading);
+        });
       } catch (error) {
-        console.error("Compass error:", error);
-        setHasPermission(false);
+        console.error("Magnetometer error:", error);
+        setHasMagnetometer(false);
       }
     };
 
-    startCompass();
+    startMagnetometer();
 
-    // Cleanup not needed since we're not using magnetometer subscription
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
   }, []);
 
-  // Animate compass rotation
+  // Animate compass rotation based on heading
+  useEffect(() => {
+    Animated.spring(compassRotateAnim, {
+      toValue: -compassHeading,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 10,
+    }).start();
+  }, [compassHeading]);
+
+  // Animate qibla pointer rotation
   useEffect(() => {
     const rotation = qiblaDirection - compassHeading;
     Animated.spring(rotateAnim, {
@@ -117,43 +153,85 @@ export default function QiblaCompass({ userLocation }: QiblaCompassProps) {
     }).start();
   }, [compassHeading, qiblaDirection]);
 
-  const rotateStyle = {
+  const qiblaRotateStyle = {
     transform: [
       {
         rotate: rotateAnim.interpolate({
-          inputRange: [0, 360],
-          outputRange: ["0deg", "360deg"],
+          inputRange: [-360, 360],
+          outputRange: ["-360deg", "360deg"],
         }),
       },
     ],
   };
 
+  const compassRotateStyle = {
+    transform: [
+      {
+        rotate: compassRotateAnim.interpolate({
+          inputRange: [-360, 360],
+          outputRange: ["-360deg", "360deg"],
+        }),
+      },
+    ],
+  };
+
+  // Calculate angle to rotate to face Qibla
+  const angleToQibla = ((qiblaDirection - compassHeading + 360) % 360).toFixed(1);
+
   const distance = userLocation
     ? calculateDistanceToMecca(userLocation.latitude, userLocation.longitude)
     : null;
 
+  // Check if user is facing Qibla (within 10 degrees)
+  const isFacingQibla = Math.abs(parseFloat(angleToQibla)) < 10 || Math.abs(parseFloat(angleToQibla) - 360) < 10;
+
+  const styles = getStyles(colors, shadows);
+
   return (
     <View style={styles.container}>
       <View style={styles.compassContainer}>
-        {/* Compass ring */}
-        <View style={styles.compassRing}>
+        {/* Compass ring with rotating background */}
+        <Animated.View style={[styles.compassRing, compassRotateStyle]}>
           {/* Direction markers */}
           <Text style={[styles.directionLabel, styles.north]}>N</Text>
           <Text style={[styles.directionLabel, styles.east]}>E</Text>
           <Text style={[styles.directionLabel, styles.south]}>S</Text>
           <Text style={[styles.directionLabel, styles.west]}>W</Text>
 
-          {/* Qibla indicator */}
-          <Animated.View style={[styles.qiblaPointer, rotateStyle]}>
-            <View style={styles.pointerLine} />
-            <View style={styles.kaabaIcon}>
-              <Ionicons name="locate" size={24} color={colors.textOnPrimary} />
-            </View>
-          </Animated.View>
+          {/* Degree markers */}
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
+            <View
+              key={deg}
+              style={[
+                styles.degreeMark,
+                {
+                  transform: [
+                    { rotate: `${deg}deg` },
+                    { translateY: -90 },
+                  ],
+                },
+              ]}
+            />
+          ))}
+        </Animated.View>
 
-          {/* Center dot */}
-          <View style={styles.centerDot} />
-        </View>
+        {/* Fixed Qibla indicator (points in the Qibla direction) */}
+        <Animated.View style={[styles.qiblaPointer, qiblaRotateStyle]}>
+          <View style={styles.pointerLine} />
+          <View style={[styles.kaabaIcon, isFacingQibla && styles.kaabaIconActive]}>
+            <Text style={styles.kaabaEmoji}>🕋</Text>
+          </View>
+        </Animated.View>
+
+        {/* Center dot */}
+        <View style={styles.centerDot} />
+
+        {/* Facing Qibla indicator */}
+        {isFacingQibla && (
+          <View style={styles.facingIndicator}>
+            <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+          </View>
+        )}
       </View>
 
       {/* Info */}
@@ -164,9 +242,23 @@ export default function QiblaCompass({ userLocation }: QiblaCompassProps) {
           <Text style={styles.infoValue}>{qiblaDirection.toFixed(1)}°</Text>
         </View>
 
+        <View style={styles.infoRow}>
+          <Ionicons name="navigate" size={20} color={colors.secondary} />
+          <Text style={styles.infoLabel}>Current Heading:</Text>
+          <Text style={styles.infoValue}>{compassHeading.toFixed(1)}°</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Ionicons name="arrow-forward-circle" size={20} color={isFacingQibla ? colors.success : colors.warning} />
+          <Text style={styles.infoLabel}>Turn:</Text>
+          <Text style={[styles.infoValue, isFacingQibla && { color: colors.success }]}>
+            {isFacingQibla ? "Facing Qibla ✓" : `${angleToQibla}° to Qibla`}
+          </Text>
+        </View>
+
         {distance && (
           <View style={styles.infoRow}>
-            <Ionicons name="location" size={20} color={colors.secondary} />
+            <Ionicons name="location" size={20} color={colors.tertiary} />
             <Text style={styles.infoLabel}>Distance to Mecca:</Text>
             <Text style={styles.infoValue}>
               {distance.toLocaleString()} km
@@ -179,6 +271,24 @@ export default function QiblaCompass({ userLocation }: QiblaCompassProps) {
             <Ionicons name="warning" size={16} color={colors.warning} />
             <Text style={styles.calibrationText}>
               Enable location for accurate Qibla direction
+            </Text>
+          </View>
+        )}
+
+        {!hasMagnetometer && Platform.OS !== "web" && (
+          <View style={styles.calibrationNotice}>
+            <Ionicons name="alert-circle" size={16} color={colors.warning} />
+            <Text style={styles.calibrationText}>
+              Magnetometer not available. Showing static direction.
+            </Text>
+          </View>
+        )}
+
+        {hasMagnetometer && (
+          <View style={styles.successNotice}>
+            <Ionicons name="hardware-chip" size={16} color={colors.success} />
+            <Text style={styles.successText}>
+              Using device compass for real-time direction
             </Text>
           </View>
         )}
@@ -196,7 +306,7 @@ export default function QiblaCompass({ userLocation }: QiblaCompassProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
@@ -207,6 +317,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
+    height: 220,
+    position: "relative",
   },
   compassRing: {
     width: 200,
@@ -217,7 +329,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceElevated,
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
+    position: "absolute",
   },
   directionLabel: {
     position: "absolute",
@@ -238,11 +350,18 @@ const styles = StyleSheet.create({
   west: {
     left: spacing.sm,
   },
+  degreeMark: {
+    position: "absolute",
+    width: 2,
+    height: 8,
+    backgroundColor: colors.textMuted,
+  },
   qiblaPointer: {
     position: "absolute",
     width: 4,
     height: 100,
     alignItems: "center",
+    zIndex: 10,
   },
   pointerLine: {
     width: 4,
@@ -251,19 +370,43 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   kaabaIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
     marginTop: -5,
+    borderWidth: 3,
+    borderColor: colors.surface,
+  },
+  kaabaIconActive: {
+    backgroundColor: colors.success,
+    borderColor: colors.success,
+  },
+  kaabaEmoji: {
+    fontSize: 22,
   },
   centerDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    position: "absolute",
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: colors.secondary,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    zIndex: 5,
+  },
+  facingIndicator: {
+    position: "absolute",
+    bottom: 0,
+    backgroundColor: colors.success + "20",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   infoContainer: {
     gap: spacing.sm,
@@ -297,6 +440,21 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.medium,
     color: colors.warning,
+    flex: 1,
+  },
+  successNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.success + "20",
+    padding: spacing.sm,
+    borderRadius: borderRadius.sm,
+    marginTop: spacing.sm,
+  },
+  successText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.medium,
+    color: colors.success,
     flex: 1,
   },
   webNotice: {
