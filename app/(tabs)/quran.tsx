@@ -7,7 +7,8 @@ import { api } from "../../convex/_generated/api";
 import { useUser } from "../../context/UserContext";
 import { useAuth } from "../../context/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { useTheme } from "../../context/ThemeContext";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 
 interface JuzProgress {
   juz: number;
@@ -57,6 +58,10 @@ const JUZ_NAMES = [
 export default function QuranScreen() {
   const { user: userContextUser, userId } = useUser();
   const { user: authUser } = useAuth();
+  const { colors, shadows } = useTheme();
+  
+  const styles = getStyles(colors, shadows);
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("progress");

@@ -5,7 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useUser } from "../../context/UserContext";
-import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { useTheme } from "../../context/ThemeContext";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 
 interface RamadanDay {
   dayNumber: number;
@@ -78,6 +79,9 @@ type TabType = "today" | "calendar" | "tracker";
 export default function CalendarScreen() {
   const { prayerTimes, location, loading: prayerLoading } = usePrayerTimes();
   const { user } = useUser();
+  const { colors, shadows } = useTheme();
+  
+  const styles = getStyles(colors, shadows);
   
   const [activeTab, setActiveTab] = useState<TabType>("today");
   const [currentDay, setCurrentDay] = useState(1);
@@ -718,7 +722,7 @@ export default function CalendarScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

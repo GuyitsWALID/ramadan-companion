@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { useTheme } from "../../context/ThemeContext";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -220,6 +221,9 @@ const categories = [
 type TabType = "explore" | "hadiths" | "duas" | "saved";
 
 export default function ContentScreen() {
+  const { colors, shadows } = useTheme();
+  const styles = getStyles(colors, shadows);
+  
   const [activeTab, setActiveTab] = useState<TabType>("explore");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -706,7 +710,7 @@ export default function ContentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

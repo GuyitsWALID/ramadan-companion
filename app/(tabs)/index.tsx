@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useUser } from "../../context/UserContext";
 import { useAuth } from "../../context/AuthContext";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
-import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { useTheme } from "../../context/ThemeContext";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 
 // Helper to calculate Ramadan day (simplified - assumes Ramadan 2026 starts Feb 17)
 const getRamadanDay = (): { day: number; total: number } | null => {
@@ -23,12 +24,16 @@ const getRamadanDay = (): { day: number; total: number } | null => {
 export default function HomeScreen() {
   const { user: userContextUser, loading: userLoading } = useUser();
   const { user: authUser } = useAuth();
+  const { colors, shadows } = useTheme();
   const { 
     prayerTimes, 
     nextPrayer, 
     loading: prayerLoading, 
     formatTimeUntil 
   } = usePrayerTimes();
+
+  // Dynamic styles
+  const styles = getStyles(colors, shadows);
 
   // Merge user data - auth user takes priority
   const user = authUser || userContextUser;
@@ -153,7 +158,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

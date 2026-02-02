@@ -5,7 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useNotificationManager } from "../../hooks/useNotificationManager";
 import { useAuth } from "../../context/AuthContext";
-import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { useTheme } from "../../context/ThemeContext";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 import QiblaCompass from "../../components/QiblaCompass";
 
 type TabType = "prayers" | "qibla" | "stats";
@@ -13,6 +14,7 @@ type TabType = "prayers" | "qibla" | "stats";
 export default function PrayerScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("prayers");
   const { user } = useAuth();
+  const { colors, shadows } = useTheme();
   const {
     prayerTimes,
     nextPrayer,
@@ -24,6 +26,9 @@ export default function PrayerScreen() {
   } = usePrayerTimes();
 
   const { scheduleDailyPrayerNotifications, notificationSettings } = useNotificationManager();
+
+  // Dynamic styles
+  const styles = getStyles(colors, shadows);
 
   // Animation for tab indicator
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
@@ -351,7 +356,7 @@ export default function PrayerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
