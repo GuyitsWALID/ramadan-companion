@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useUser } from "../../context/UserContext";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
+import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
 export default function ProfileScreen() {
   const { user, settings, updateSettings, loading, isAuthenticated, login, logout } = useUser();
@@ -25,25 +26,25 @@ export default function ProfileScreen() {
       title: "Today's Prayers",
       value: `${completedPrayers}/5`,
       icon: "time-outline",
-      color: "#1a472a",
+      color: colors.primary,
     },
     {
       title: "Location",
       value: location?.city || "Not set",
       icon: "location-outline",
-      color: "#2e7d32",
+      color: colors.success,
     },
     {
       title: "Method",
       value: prayerSettings?.calculationMethod?.slice(0, 8) || "Default",
       icon: "calculator-outline",
-      color: "#f57c00",
+      color: colors.secondary,
     },
     {
       title: "Status",
       value: isAuthenticated ? "Synced" : "Local",
       icon: isAuthenticated ? "cloud-done-outline" : "cloud-offline-outline",
-      color: isAuthenticated ? "#1a472a" : "#888",
+      color: isAuthenticated ? colors.primary : colors.textMuted,
     },
   ];
 
@@ -91,7 +92,7 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1a472a" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
       </SafeAreaView>
@@ -123,7 +124,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.signOutButton} onPress={handleLogout}>
-              <Ionicons name="log-out-outline" size={20} color="#1a472a" />
+              <Ionicons name="log-out-outline" size={20} color={colors.primary} />
               <Text style={styles.signOutButtonText}>Sign Out</Text>
             </TouchableOpacity>
           )}
@@ -143,7 +144,7 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Notifications</Text>
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="notifications-outline" size={24} color="#1a472a" />
+              <Ionicons name="notifications-outline" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingName}>Prayer Reminders</Text>
                 <Text style={styles.settingDescription}>Get notified for each prayer</Text>
@@ -152,14 +153,14 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.prayerReminders}
               onValueChange={() => toggleSetting('prayerReminders')}
-              trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={localSettings.prayerReminders ? "#1a472a" : "#f4f3f4"}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={localSettings.prayerReminders ? colors.primary : colors.surfaceElevated}
             />
           </View>
 
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="book-outline" size={24} color="#1a472a" />
+              <Ionicons name="book-outline" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingName}>Quran Reading Reminders</Text>
                 <Text style={styles.settingDescription}>Daily Quran reading notifications</Text>
@@ -168,14 +169,14 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.quranReminders}
               onValueChange={() => toggleSetting('quranReminders')}
-              trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={localSettings.quranReminders ? "#1a472a" : "#f4f3f4"}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={localSettings.quranReminders ? colors.primary : colors.surfaceElevated}
             />
           </View>
 
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="calendar-outline" size={24} color="#1a472a" />
+              <Ionicons name="calendar-outline" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingName}>Ramadan Special</Text>
                 <Text style={styles.settingDescription}>Sehri and Iftar reminders</Text>
@@ -184,8 +185,8 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.ramadanReminders}
               onValueChange={() => toggleSetting('ramadanReminders')}
-              trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={localSettings.ramadanReminders ? "#1a472a" : "#f4f3f4"}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={localSettings.ramadanReminders ? colors.primary : colors.surfaceElevated}
             />
           </View>
         </View>
@@ -194,7 +195,7 @@ export default function ProfileScreen() {
           <Text style={styles.sectionTitle}>Sound & Haptics</Text>
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="volume-high-outline" size={24} color="#1a472a" />
+              <Ionicons name="volume-high-outline" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingName}>Adhan Sound</Text>
                 <Text style={styles.settingDescription}>Play Adhan for prayer times</Text>
@@ -203,14 +204,14 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.soundEnabled}
               onValueChange={() => toggleSetting('soundEnabled')}
-              trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={localSettings.soundEnabled ? "#1a472a" : "#f4f3f4"}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={localSettings.soundEnabled ? colors.primary : colors.surfaceElevated}
             />
           </View>
 
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
-              <Ionicons name="phone-portrait-outline" size={24} color="#1a472a" />
+              <Ionicons name="phone-portrait-outline" size={24} color={colors.primary} />
               <View style={styles.settingText}>
                 <Text style={styles.settingName}>Vibration</Text>
                 <Text style={styles.settingDescription}>Vibrate on notifications</Text>
@@ -219,8 +220,8 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.vibrationEnabled}
               onValueChange={() => toggleSetting('vibrationEnabled')}
-              trackColor={{ false: "#e0e0e0", true: "#c8e6c9" }}
-              thumbColor={localSettings.vibrationEnabled ? "#1a472a" : "#f4f3f4"}
+              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              thumbColor={localSettings.vibrationEnabled ? colors.primary : colors.surfaceElevated}
             />
           </View>
         </View>
@@ -228,62 +229,62 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>App Settings</Text>
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="location-outline" size={24} color="#1a472a" />
+            <Ionicons name="location-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Location</Text>
               <Text style={styles.menuValue}>
                 {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Tap to set"}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#888" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="language-outline" size={24} color="#1a472a" />
+            <Ionicons name="language-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Language</Text>
               <Text style={styles.menuValue}>{localSettings.language || "English"}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#888" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="calculate-outline" size={24} color="#1a472a" />
+            <Ionicons name="calculate-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Calculation Method</Text>
               <Text style={styles.menuValue}>{prayerSettings?.calculationMethod || "Muslim World League"}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#888" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Support</Text>
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="help-circle-outline" size={24} color="#1a472a" />
+            <Ionicons name="help-circle-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Help & Support</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#888" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity 
             style={styles.menuItem}
             onPress={() => router.push("/support")}
           >
-            <Ionicons name="heart-outline" size={24} color="#1a472a" />
+            <Ionicons name="heart-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>Support the App</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#888" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="information-circle-outline" size={24} color="#1a472a" />
+            <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
             <View style={styles.menuText}>
               <Text style={styles.menuTitle}>About</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#888" />
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -294,90 +295,88 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   profileInfo: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    ...shadows.md,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#1a472a",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   avatarText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#ffffff",
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
   },
   userEmail: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 2,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+    marginBottom: spacing.xxs,
   },
   userLocation: {
-    fontSize: 12,
-    color: "#888",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
   },
   signInButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1a472a",
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
-    gap: 8,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   signInButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.textOnPrimary,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
   },
   signOutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#f5f5f5",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#1a472a",
-    padding: 12,
-    marginTop: 12,
-    gap: 8,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    padding: spacing.md,
+    marginTop: spacing.md,
+    gap: spacing.sm,
   },
   signOutButtonText: {
-    color: "#1a472a",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.primary,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
   },
   loadingContainer: {
     flex: 1,
@@ -385,65 +384,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
+    marginTop: spacing.md,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   statsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   statCard: {
     width: "48%",
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
     alignItems: "center",
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: spacing.sm,
+    ...shadows.md,
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    marginVertical: 8,
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+    marginVertical: spacing.sm,
   },
   statTitle: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
     textAlign: "center",
   },
   section: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.xxs,
+    marginBottom: spacing.lg,
+    ...shadows.md,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    padding: 16,
-    paddingBottom: 8,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    padding: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   settingItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
+    padding: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: colors.border,
   },
   settingInfo: {
     flexDirection: "row",
@@ -451,38 +444,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   settingText: {
-    marginLeft: 16,
+    marginLeft: spacing.lg,
     flex: 1,
   },
   settingName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
   },
   settingDescription: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: colors.border,
   },
   menuText: {
-    marginLeft: 16,
+    marginLeft: spacing.lg,
     flex: 1,
   },
   menuTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
   },
   menuValue: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
 });

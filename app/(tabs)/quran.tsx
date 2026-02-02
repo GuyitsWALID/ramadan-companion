@@ -6,6 +6,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "../../context/UserContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
 interface JuzProgress {
   juz: number;
@@ -140,7 +141,7 @@ export default function QuranScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1a472a" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading Quran progress...</Text>
         </View>
       </SafeAreaView>
@@ -171,7 +172,7 @@ export default function QuranScreen() {
         <View style={styles.planCard}>
           <Text style={styles.planTitle}>Today's Reading</Text>
           <View style={styles.planInfo}>
-            <Ionicons name="book-outline" size={24} color="#ffffff" />
+            <Ionicons name="book-outline" size={24} color={colors.textOnPrimary} />
             <View style={styles.planDetails}>
               <Text style={styles.planJuz}>Juz {readingPlan.currentJuz}</Text>
               <Text style={styles.planVerses}>{readingPlan.dailyVerses} verses planned</Text>
@@ -225,9 +226,9 @@ export default function QuranScreen() {
               </View>
               <View style={styles.juzStatus}>
                 {juz.completed ? (
-                  <Ionicons name="checkmark-circle" size={24} color="#1a472a" />
+                  <Ionicons name="checkmark-circle" size={24} color={colors.success} />
                 ) : (
-                  <Ionicons name="radio-button-off" size={24} color="#888" />
+                  <Ionicons name="radio-button-off" size={24} color={colors.textMuted} />
                 )}
               </View>
             </TouchableOpacity>
@@ -241,79 +242,77 @@ export default function QuranScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a472a",
-    marginBottom: 4,
+    fontSize: typography.sizes.xxxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   progressCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    ...shadows.md,
   },
   progressHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   progressTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
   },
   progressPercentage: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a472a",
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
   },
   progressBar: {
     height: 8,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 4,
-    marginBottom: 8,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.sm,
+    marginBottom: spacing.sm,
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#1a472a",
-    borderRadius: 4,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.sm,
   },
   progressText: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
     textAlign: "center",
   },
   planCard: {
-    backgroundColor: "#1a472a",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
   },
   planTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginBottom: 16,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+    marginBottom: spacing.lg,
   },
   planInfo: {
     flexDirection: "row",
@@ -321,46 +320,43 @@ const styles = StyleSheet.create({
   },
   planDetails: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: spacing.lg,
   },
   planJuz: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginBottom: 4,
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+    marginBottom: spacing.xs,
   },
   planVerses: {
-    fontSize: 14,
-    color: "#ffffff",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
     opacity: 0.8,
   },
   startButton: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
   },
   startButtonText: {
-    color: "#1a472a",
-    fontSize: 14,
-    fontWeight: "600",
+    color: colors.primary,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
   },
   statsCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    ...shadows.md,
   },
   statsTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 16,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   statsGrid: {
     flexDirection: "row",
@@ -370,52 +366,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a472a",
-    marginBottom: 4,
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   juzList: {
-    marginTop: 20,
+    marginTop: spacing.xl,
   },
   juzListTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 16,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   juzCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 8,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.sm,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    ...shadows.sm,
   },
   completedJuzCard: {
-    backgroundColor: "#e8f5e8",
+    backgroundColor: colors.success + "15",
   },
   juzInfo: {
     flex: 1,
   },
   juzName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
   },
   juzProgress: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   juzStatus: {
     justifyContent: "center",
@@ -426,8 +420,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
+    marginTop: spacing.md,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
 });

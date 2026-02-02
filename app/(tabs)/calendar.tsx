@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useUser } from "../../context/UserContext";
+import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
 interface RamadanDay {
   dayNumber: number;
@@ -103,7 +104,7 @@ export default function CalendarScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1a472a" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading calendar...</Text>
         </View>
       </SafeAreaView>
@@ -137,12 +138,12 @@ export default function CalendarScreen() {
           
           <View style={styles.timingsRow}>
             <View style={styles.timingCard}>
-              <Ionicons name="moon-outline" size={24} color="#ffffff" />
+              <Ionicons name="moon-outline" size={24} color={colors.textOnPrimary} />
               <Text style={styles.timingTitle}>Sehri</Text>
               <Text style={styles.timingTime}>{selectedDay?.sehriTime}</Text>
             </View>
             <View style={styles.timingCard}>
-              <Ionicons name="sunset-outline" size={24} color="#ffffff" />
+              <Ionicons name="sunset-outline" size={24} color={colors.textOnPrimary} />
               <Text style={styles.timingTitle}>Iftar</Text>
               <Text style={styles.timingTime}>{selectedDay?.iftarTime}</Text>
             </View>
@@ -163,7 +164,7 @@ export default function CalendarScreen() {
             style={styles.navButton}
             onPress={() => setCurrentDay(Math.max(1, currentDay - 1))}
           >
-            <Ionicons name="chevron-back" size={20} color="#1a472a" />
+            <Ionicons name="chevron-back" size={20} color={colors.primary} />
             <Text style={styles.navButtonText}>Previous</Text>
           </TouchableOpacity>
           
@@ -172,7 +173,7 @@ export default function CalendarScreen() {
             onPress={() => setCurrentDay(Math.min(30, currentDay + 1))}
           >
             <Text style={styles.navButtonText}>Next</Text>
-            <Ionicons name="chevron-forward" size={20} color="#1a472a" />
+            <Ionicons name="chevron-forward" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
 
@@ -211,7 +212,7 @@ export default function CalendarScreen() {
                     <Text style={styles.eventDay}>Day {dayNum}</Text>
                   </View>
                   <Text style={styles.eventName}>{event}</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#888" />
+                  <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
                 </View>
               );
             }
@@ -222,19 +223,19 @@ export default function CalendarScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ramadan Reminders</Text>
           <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#1a472a" />
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
             <Text style={styles.reminderText}>Complete daily prayers on time</Text>
           </View>
           <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#1a472a" />
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
             <Text style={styles.reminderText}>Read Quran daily (minimum 20 verses)</Text>
           </View>
           <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#1a472a" />
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
             <Text style={styles.reminderText}>Increase charity and good deeds</Text>
           </View>
           <View style={styles.reminderItem}>
-            <Ionicons name="checkmark-circle" size={20} color="#1a472a" />
+            <Ionicons name="checkmark-circle" size={20} color={colors.success} />
             <Text style={styles.reminderText}>Make dua during blessed nights</Text>
           </View>
         </View>
@@ -246,29 +247,31 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a472a",
-    marginBottom: 4,
+    fontSize: typography.sizes.xxxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   locationText: {
-    fontSize: 14,
-    color: "#888",
-    marginTop: 4,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
   loadingContainer: {
     flex: 1,
@@ -276,132 +279,127 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: "#666",
+    marginTop: spacing.md,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   currentDayCard: {
-    backgroundColor: "#1a472a",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
+    ...shadows.lg,
   },
   currentDayHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: spacing.xl,
   },
   dayNumberContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#ffffff",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   dayNumber: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#1a472a",
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
   },
   currentDayInfo: {
     flex: 1,
   },
   currentDayTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginBottom: 4,
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+    marginBottom: spacing.xs,
   },
   currentDate: {
-    fontSize: 16,
-    color: "#ffffff",
-    opacity: 0.8,
-    marginBottom: 2,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
+    opacity: 0.9,
+    marginBottom: spacing.xxs,
   },
   daysLeft: {
-    fontSize: 14,
-    color: "#ffffff",
-    opacity: 0.7,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
+    opacity: 0.8,
   },
   timingsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   timingCard: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
     alignItems: "center",
-    marginHorizontal: 4,
+    marginHorizontal: spacing.xxs,
   },
   timingTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginTop: 8,
-    marginBottom: 4,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
   },
   timingTime: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#ffffff",
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
   },
   eventCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(249, 168, 37, 0.2)",
-    borderRadius: 8,
-    padding: 12,
+    backgroundColor: colors.secondary + "25",
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
     borderWidth: 1,
-    borderColor: "rgba(249, 168, 37, 0.5)",
+    borderColor: colors.secondary + "50",
   },
   eventText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#f9a825",
-    marginLeft: 8,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.secondary,
+    marginLeft: spacing.sm,
   },
   navigationContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   navButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
-    padding: 12,
-    paddingHorizontal: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    paddingHorizontal: spacing.lg,
+    ...shadows.md,
   },
   navButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a472a",
-    marginHorizontal: 4,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.primary,
+    marginHorizontal: spacing.xs,
   },
   calendarGrid: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   gridTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 16,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   daysGrid: {
     flexDirection: "row",
@@ -411,78 +409,76 @@ const styles = StyleSheet.create({
   dayCell: {
     width: "15%",
     aspectRatio: 1,
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    marginBottom: spacing.sm,
+    ...shadows.sm,
   },
   selectedDayCell: {
-    backgroundColor: "#1a472a",
+    backgroundColor: colors.primary,
   },
   specialDayCell: {
     borderWidth: 2,
-    borderColor: "#f9a825",
+    borderColor: colors.secondary,
   },
   dayCellText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
   },
   selectedDayCellText: {
-    color: "#ffffff",
+    color: colors.textOnPrimary,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 16,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.lg,
   },
   eventItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   eventIndicator: {
-    backgroundColor: "#1a472a",
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginRight: 12,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    marginRight: spacing.md,
   },
   eventDay: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#ffffff",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
   },
   eventName: {
     flex: 1,
-    fontSize: 14,
-    color: "#333",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.text,
   },
   reminderItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   reminderText: {
-    marginLeft: 12,
-    fontSize: 14,
-    color: "#333",
+    marginLeft: spacing.md,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.text,
     flex: 1,
   },
 });

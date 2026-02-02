@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "rea
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { colors, typography, spacing, borderRadius, shadows } from "../constants/theme";
 
 interface DonationTier {
   id: string;
@@ -91,11 +92,11 @@ export default function SupportModal() {
       <ScrollView style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Ionicons name="heart" size={32} color="#e91e63" />
+            <Ionicons name="heart" size={32} color={colors.error} />
             <Text style={styles.title}>Support Us</Text>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
-            <Ionicons name="close" size={28} color="#666" />
+            <Ionicons name="close" size={28} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -108,7 +109,7 @@ export default function SupportModal() {
             "Add more Islamic resources"
           ].map((reason, i) => (
             <View key={i} style={styles.reasonItem}>
-              <Ionicons name="checkmark-circle" size={20} color="#4caf50" />
+              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
               <Text style={styles.reasonText}>{reason}</Text>
             </View>
           ))}
@@ -145,7 +146,7 @@ export default function SupportModal() {
                 <View style={styles.benefitsList}>
                   {tier.benefits.map((benefit, index) => (
                     <View key={index} style={styles.benefitItem}>
-                      <Ionicons name="checkmark" size={16} color="#4caf50" />
+                      <Ionicons name="checkmark" size={16} color={colors.success} />
                       <Text style={styles.benefitText}>{benefit}</Text>
                     </View>
                   ))}
@@ -158,7 +159,7 @@ export default function SupportModal() {
                 ]}>
                   <Text style={[
                     styles.buttonText,
-                    (isSelected || tier.popular) && { color: "#ffffff" }
+                    (isSelected || tier.popular) && { color: colors.textOnPrimary }
                   ]}>
                     {isProcessing && isSelected ? "Processing..." : `Donate $${tier.amount}`}
                   </Text>
@@ -173,52 +174,52 @@ export default function SupportModal() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    backgroundColor: "#ffffff",
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    borderBottomColor: colors.border,
   },
   headerContent: { flexDirection: "row", alignItems: "center", flex: 1 },
-  title: { fontSize: 20, fontWeight: "bold", color: "#333", marginLeft: 12 },
-  closeButton: { padding: 4 },
-  section: { padding: 20, backgroundColor: "#ffffff", marginBottom: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", color: "#333", marginBottom: 16 },
-  reasonItem: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  reasonText: { fontSize: 16, color: "#333", marginLeft: 12, flex: 1 },
+  title: { fontSize: typography.sizes.xl, fontFamily: typography.fonts.bold, color: colors.text, marginLeft: spacing.md },
+  closeButton: { padding: spacing.xs },
+  section: { padding: spacing.lg, backgroundColor: colors.surface, marginBottom: spacing.sm },
+  sectionTitle: { fontSize: typography.sizes.lg, fontFamily: typography.fonts.bold, color: colors.text, marginBottom: spacing.lg },
+  reasonItem: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
+  reasonText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.regular, color: colors.text, marginLeft: spacing.md, flex: 1 },
   tierCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
     borderWidth: 2,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
   },
-  popularTier: { borderColor: "#f9a825", backgroundColor: "#fff8e1" },
-  selectedTier: { borderColor: "#1a472a", backgroundColor: "#f0fdf4" },
+  popularTier: { borderColor: colors.secondary, backgroundColor: colors.secondaryLight },
+  selectedTier: { borderColor: colors.primary, backgroundColor: colors.primaryLight },
   popularBadge: {
     position: "absolute",
     top: -10,
     right: 20,
-    backgroundColor: "#f9a825",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: colors.secondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.lg,
   },
-  popularBadgeText: { color: "#ffffff", fontSize: 12, fontWeight: "bold" },
-  tierHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  tierName: { fontSize: 20, fontWeight: "bold", color: "#333" },
-  tierAmount: { fontSize: 24, fontWeight: "bold", color: "#1a472a" },
-  tierDescription: { fontSize: 14, color: "#666", marginBottom: 16 },
-  benefitsList: { marginBottom: 20 },
-  benefitItem: { flexDirection: "row", alignItems: "flex-start", marginBottom: 8 },
-  benefitText: { fontSize: 14, color: "#333", marginLeft: 8, flex: 1, lineHeight: 20 },
-  donateButton: { backgroundColor: "#e0e0e0", borderRadius: 8, padding: 16, alignItems: "center" },
-  selectedButton: { backgroundColor: "#1a472a" },
-  popularButton: { backgroundColor: "#f9a825" },
-  buttonText: { fontSize: 16, fontWeight: "bold", color: "#333" },
+  popularBadgeText: { color: colors.textOnPrimary, fontSize: typography.sizes.xs, fontFamily: typography.fonts.bold },
+  tierHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  tierName: { fontSize: typography.sizes.xl, fontFamily: typography.fonts.bold, color: colors.text },
+  tierAmount: { fontSize: typography.sizes.xxl, fontFamily: typography.fonts.bold, color: colors.primary },
+  tierDescription: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.regular, color: colors.textSecondary, marginBottom: spacing.lg },
+  benefitsList: { marginBottom: spacing.lg },
+  benefitItem: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.sm },
+  benefitText: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.regular, color: colors.text, marginLeft: spacing.sm, flex: 1, lineHeight: 20 },
+  donateButton: { backgroundColor: colors.border, borderRadius: borderRadius.md, padding: spacing.lg, alignItems: "center" },
+  selectedButton: { backgroundColor: colors.primary },
+  popularButton: { backgroundColor: colors.secondary },
+  buttonText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.bold, color: colors.text },
 });

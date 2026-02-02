@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useNotificationManager } from "../../hooks/useNotificationManager";
+import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
 export default function PrayerScreen() {
   const {
@@ -98,12 +99,12 @@ export default function PrayerScreen() {
                   size={24} 
                   color={
                     prayer.completed === true 
-                      ? "#ffffff" 
+                      ? colors.success 
                       : prayer.completed === null 
-                      ? "#888" 
+                      ? colors.textMuted 
                       : prayer.isUpcoming
-                      ? "#1a472a"
-                      : "#1a472a"
+                      ? colors.secondary
+                      : colors.primary
                   } 
                 />
               </View>
@@ -116,13 +117,13 @@ export default function PrayerScreen() {
               </View>
               <View style={styles.prayerStatus}>
                 {prayer.completed === true && (
-                  <Ionicons name="checkmark-circle" size={24} color="#1a472a" />
+                  <Ionicons name="checkmark-circle" size={24} color={colors.success} />
                 )}
                 {prayer.completed === false && !prayer.isUpcoming && (
-                  <Ionicons name="radio-button-off" size={24} color="#888" />
+                  <Ionicons name="radio-button-off" size={24} color={colors.textMuted} />
                 )}
                 {prayer.isUpcoming && (
-                  <Ionicons name="time" size={24} color="#f9a825" />
+                  <Ionicons name="time" size={24} color={colors.secondary} />
                 )}
               </View>
             </TouchableOpacity>
@@ -130,7 +131,7 @@ export default function PrayerScreen() {
         </View>
 
         <TouchableOpacity style={styles.refreshButton} onPress={refreshPrayerTimes}>
-          <Ionicons name="refresh" size={20} color="#ffffff" />
+          <Ionicons name="refresh" size={20} color={colors.textOnPrimary} />
           <Text style={styles.refreshButtonText}>Refresh Times</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -141,11 +142,11 @@ export default function PrayerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
   },
   loadingContainer: {
     flex: 1,
@@ -153,152 +154,153 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   header: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a472a",
-    marginBottom: 4,
+    fontSize: typography.sizes.xxxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
   },
   location: {
-    fontSize: 14,
-    color: "#666",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   nextPrayerCard: {
-    backgroundColor: "#f9a825",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
+    backgroundColor: colors.secondary,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    marginBottom: spacing.xl,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
+    ...shadows.lg,
   },
   nextPrayerInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: spacing.lg,
   },
   nextPrayerTitle: {
-    fontSize: 14,
-    color: "#ffffff",
-    opacity: 0.8,
-    marginBottom: 4,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
+    opacity: 0.9,
+    marginBottom: spacing.xs,
   },
   nextPrayerName: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#ffffff",
-    marginBottom: 4,
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
+    marginBottom: spacing.xs,
   },
   nextPrayerTime: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginBottom: 4,
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+    marginBottom: spacing.xs,
   },
   nextPrayerCountdown: {
-    fontSize: 16,
-    color: "#ffffff",
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
     opacity: 0.9,
   },
   dateCard: {
-    backgroundColor: "#1a472a",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
     alignItems: "center",
   },
   dateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#ffffff",
-    marginBottom: 4,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
+    marginBottom: spacing.xs,
   },
   hijriText: {
-    fontSize: 14,
-    color: "#ffffff",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textOnPrimary,
+    opacity: 0.9,
   },
   prayersList: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   prayerCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    ...shadows.md,
   },
   completedCard: {
-    backgroundColor: "#e8f5e8",
+    backgroundColor: colors.success + "15",
   },
   disabledCard: {
-    backgroundColor: "#f8f8f8",
+    backgroundColor: colors.surfaceElevated,
+    opacity: 0.6,
   },
   upcomingCard: {
-    backgroundColor: "#fff8e1",
+    backgroundColor: colors.warning + "10",
     borderWidth: 2,
-    borderColor: "#f9a825",
+    borderColor: colors.secondary,
   },
   prayerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.primaryLight + "15",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: spacing.lg,
   },
   upcomingIcon: {
-    backgroundColor: "#ffecb3",
+    backgroundColor: colors.secondary + "20",
   },
   prayerInfo: {
     flex: 1,
   },
   prayerName: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.xxs,
   },
   prayerTime: {
-    fontSize: 16,
-    color: "#666",
-    marginBottom: 2,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+    marginBottom: spacing.xxs,
   },
   nextPrayerLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#f9a825",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.secondary,
   },
   prayerStatus: {
     justifyContent: "center",
   },
   refreshButton: {
-    backgroundColor: "#1a472a",
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.lg,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    ...shadows.md,
   },
   refreshButtonText: {
-    color: "#ffffff",
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
+    color: colors.textOnPrimary,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    marginLeft: spacing.sm,
   },
 });

@@ -2,6 +2,7 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Image } from "rea
 import { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 
 interface ContentItem {
   id: string;
@@ -173,7 +174,7 @@ export default function ContentScreen() {
             <Ionicons
               name={type.icon as any}
               size={16}
-              color={selectedType === type.type ? "#ffffff" : "#1a472a"}
+              color={selectedType === type.type ? colors.textOnPrimary : colors.primary}
             />
             <Text style={[
               styles.typeChipText,
@@ -221,7 +222,7 @@ export default function ContentScreen() {
             <View style={styles.contentInfo}>
               <View style={styles.contentHeader}>
                 <View style={styles.contentMeta}>
-                  <Ionicons name={getTypeIcon(item.type)} size={16} color="#1a472a" />
+                  <Ionicons name={getTypeIcon(item.type)} size={16} color={colors.primary} />
                   <Text style={styles.contentType}>{item.type}</Text>
                   <Text style={styles.contentSeparator}>•</Text>
                   <Text style={styles.contentCategory}>{item.category}</Text>
@@ -252,7 +253,7 @@ export default function ContentScreen() {
 
         {filteredContent.length === 0 && (
           <View style={styles.emptyState}>
-            <Ionicons name="search-outline" size={48} color="#ccc" />
+            <Ionicons name="search-outline" size={48} color={colors.border} />
             <Text style={styles.emptyStateText}>No content found</Text>
             <Text style={styles.emptyStateSubtext}>
               Try selecting different filters
@@ -267,89 +268,86 @@ export default function ContentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.background,
   },
   header: {
-    padding: 16,
-    paddingBottom: 8,
+    padding: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#1a472a",
-    marginBottom: 4,
+    fontSize: typography.sizes.xxxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: "#666",
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   typeFilter: {
-    padding: 16,
+    padding: spacing.lg,
     paddingTop: 0,
   },
   typeChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.sm,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
   },
   selectedChip: {
-    backgroundColor: "#1a472a",
-    borderColor: "#1a472a",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   typeChipText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a472a",
-    marginLeft: 4,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.primary,
+    marginLeft: spacing.xs,
   },
   selectedChipText: {
-    color: "#ffffff",
+    color: colors.textOnPrimary,
   },
   categoryFilter: {
-    padding: 16,
-    paddingTop: 8,
+    padding: spacing.lg,
+    paddingTop: spacing.sm,
   },
   categoryChip: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.sm,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: colors.border,
   },
   categoryChipText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a472a",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.primary,
   },
   contentList: {
     flex: 1,
-    padding: 16,
+    padding: spacing.lg,
   },
   contentCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.md,
   },
   contentImage: {
     width: "100%",
     height: 180,
-    borderRadius: 8,
-    marginBottom: 12,
-    backgroundColor: "#f0f0f0",
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surfaceElevated,
   },
   contentInfo: {
     flex: 1,
@@ -358,74 +356,79 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   contentMeta: {
     flexDirection: "row",
     alignItems: "center",
   },
   contentType: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#1a472a",
-    marginLeft: 4,
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.primary,
+    marginLeft: spacing.xs,
   },
   contentSeparator: {
-    fontSize: 12,
-    color: "#ccc",
-    marginHorizontal: 4,
+    fontSize: typography.sizes.xs,
+    color: colors.border,
+    marginHorizontal: spacing.xs,
   },
   contentCategory: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   contentDuration: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   contentTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 8,
-    lineHeight: 24,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+    marginBottom: spacing.sm,
+    lineHeight: typography.sizes.lg * 1.3,
   },
   contentExcerpt: {
-    fontSize: 14,
-    color: "#666",
-    lineHeight: 20,
-    marginBottom: 12,
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+    lineHeight: typography.sizes.sm * 1.5,
+    marginBottom: spacing.md,
   },
   contentFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   contentAuthor: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   contentPublished: {
-    fontSize: 12,
-    color: "#888",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
   },
   tagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
   },
   tag: {
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-    marginBottom: 4,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    marginRight: spacing.sm,
+    marginBottom: spacing.xs,
   },
   tagText: {
-    fontSize: 11,
-    color: "#666",
-    fontWeight: "500",
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.medium,
+    color: colors.textSecondary,
   },
   emptyState: {
     flex: 1,
@@ -434,14 +437,15 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyStateText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#666",
-    marginTop: 16,
-    marginBottom: 8,
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textSecondary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
   },
   emptyStateSubtext: {
-    fontSize: 14,
-    color: "#999",
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
   },
 });
