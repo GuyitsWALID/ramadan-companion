@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useUser } from "../../context/UserContext";
 import { useAuth } from "../../context/AuthContext";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
@@ -9,6 +9,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { typography, spacing, borderRadius } from "../../constants/theme";
 import ActivityHeatMap from "../../components/ActivityHeatMap";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { router } from "expo-router";
 
 // Helper to calculate Ramadan day (simplified - assumes Ramadan 2026 starts Feb 17)
 const getRamadanDay = (): { day: number; total: number } | null => {
@@ -27,6 +28,8 @@ const getRamadanDay = (): { day: number; total: number } | null => {
 // Storage keys
 const ACTIVITY_KEY = "@activity_data";
 const FASTING_KEY = "@fasting_data";
+const DATA_VERSION_KEY = "@data_version";
+const CURRENT_DATA_VERSION = "2"; // Increment this to reset data
 
 interface DayActivity {
   date: string;
@@ -63,28 +66,54 @@ export default function HomeScreen() {
 
   // Load activity data from storage
   useEffect(() => {
-    loadActivityData();
-    loadFastingStatus();
+    checkAndResetDataIfNeeded();
   }, []);
 
-  // Update today's activity when prayer times change
+  // Update today's activity when prayer times or fasting status change
   useEffect(() => {
-    updateTodayActivity();
-  }, [prayerTimes, todayFasted, user]);
+    if (prayerTimes.length > 0) {
+      updateTodayActivity();
+    }
+  }, [completedPrayers, todayFasted, updateTodayActivity]);
+
+  // Check data version and reset if outdated (clears old sample data)
+  const checkAndResetDataIfNeeded = async () => {
+    try {
+      const storedVersion = await AsyncStorage.getItem(DATA_VERSION_KEY);
+      if (storedVersion !== CURRENT_DATA_VERSION) {
+        // Clear old data
+        await AsyncStorage.removeItem(ACTIVITY_KEY);
+        await AsyncStorage.removeItem(FASTING_KEY);
+        await AsyncStorage.setItem(DATA_VERSION_KEY, CURRENT_DATA_VERSION);
+        console.log("Cleared old sample data, starting fresh");
+        setActivityData([]);
+        setTodayFasted(false);
+        setStreak({ prayers: 0, fasting: 0, quran: 0 });
+      } else {
+        loadActivityData();
+        loadFastingStatus();
+      }
+    } catch (error) {
+      console.error("Error checking data version:", error);
+      loadActivityData();
+      loadFastingStatus();
+    }
+  };
 
   const loadActivityData = async () => {
     try {
       const data = await AsyncStorage.getItem(ACTIVITY_KEY);
       if (data) {
-        setActivityData(JSON.parse(data));
+        const parsed = JSON.parse(data);
+        setActivityData(parsed);
+        calculateStreaks(parsed);
       } else {
-        // Generate sample data for past 49 days
-        const sampleData = generateSampleData();
-        setActivityData(sampleData);
-        await AsyncStorage.setItem(ACTIVITY_KEY, JSON.stringify(sampleData));
+        // Initialize with empty data - no sample data
+        setActivityData([]);
       }
     } catch (error) {
       console.error("Error loading activity data:", error);
+      setActivityData([]);
     }
   };
 
@@ -120,34 +149,22 @@ export default function HomeScreen() {
     }
   };
 
-  const generateSampleData = (): DayActivity[] => {
-    const data: DayActivity[] = [];
-    const today = new Date();
+  const updateTodayActivity = useCallback(async () => {
+    const today = new Date().toISOString().split("T")[0];
+    const quranRead = (user?.quranReadingPlan?.currentJuz || 0) > 0 || (user?.quranReadingPlan?.dailyVerses || 0) > 0;
     
-    for (let i = 48; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
-      
-      // Random but realistic data
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      data.push({
-        date: dateStr,
-        prayers: Math.floor(Math.random() * 3) + (isWeekend ? 3 : 2),
-        quranRead: Math.random() > 0.4,
-        fasted: ramadanDay ? Math.random() > 0.1 : Math.random() > 0.7,
-      });
+    // Load fresh data to avoid stale state
+    let currentData: DayActivity[] = [];
+    try {
+      const storedData = await AsyncStorage.getItem(ACTIVITY_KEY);
+      if (storedData) {
+        currentData = JSON.parse(storedData);
+      }
+    } catch (error) {
+      console.error("Error loading activity data:", error);
     }
     
-    return data;
-  };
-
-  const updateTodayActivity = async () => {
-    const today = new Date().toISOString().split("T")[0];
-    const quranRead = user?.quranReadingPlan?.currentJuz > 1 || (user?.quranReadingPlan?.dailyVerses || 0) > 0;
-    
-    const updatedData = [...activityData];
-    const todayIndex = updatedData.findIndex(d => d.date === today);
+    const todayIndex = currentData.findIndex(d => d.date === today);
     
     const todayData: DayActivity = {
       date: today,
@@ -157,43 +174,101 @@ export default function HomeScreen() {
     };
     
     if (todayIndex >= 0) {
-      updatedData[todayIndex] = todayData;
+      currentData[todayIndex] = todayData;
     } else {
-      updatedData.push(todayData);
+      currentData.push(todayData);
     }
     
-    setActivityData(updatedData);
+    // Sort by date and keep only last 49 days
+    currentData = currentData
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-49);
+    
+    setActivityData(currentData);
     
     try {
-      await AsyncStorage.setItem(ACTIVITY_KEY, JSON.stringify(updatedData));
+      await AsyncStorage.setItem(ACTIVITY_KEY, JSON.stringify(currentData));
     } catch (error) {
       console.error("Error saving activity data:", error);
     }
     
     // Calculate streaks
-    calculateStreaks(updatedData);
-  };
+    calculateStreaks(currentData);
+  }, [completedPrayers, todayFasted, user]);
 
   const calculateStreaks = (data: DayActivity[]) => {
+    if (data.length === 0) {
+      setStreak({ prayers: 0, fasting: 0, quran: 0 });
+      return;
+    }
+
+    // Sort by date descending (most recent first)
+    const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
     let prayerStreak = 0;
     let fastingStreak = 0;
     let quranStreak = 0;
     
-    const sortedData = [...data].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    
-    for (const day of sortedData) {
-      if (day.prayers >= 4) prayerStreak++;
-      else break;
+    // Calculate consecutive day streaks
+    // For prayer streak: count consecutive days with at least 1 prayer completed
+    for (let i = 0; i < sortedData.length; i++) {
+      const dayDate = new Date(sortedData[i].date);
+      dayDate.setHours(0, 0, 0, 0);
+      
+      // Check if this is a consecutive day
+      const expectedDate = new Date(today);
+      expectedDate.setDate(expectedDate.getDate() - i);
+      
+      if (dayDate.getTime() !== expectedDate.getTime()) {
+        break; // Gap in days, streak ends
+      }
+      
+      if (sortedData[i].prayers >= 1) {
+        prayerStreak++;
+      } else {
+        break;
+      }
     }
     
-    for (const day of sortedData) {
-      if (day.fasted) fastingStreak++;
-      else break;
+    // For fasting streak
+    for (let i = 0; i < sortedData.length; i++) {
+      const dayDate = new Date(sortedData[i].date);
+      dayDate.setHours(0, 0, 0, 0);
+      
+      const expectedDate = new Date(today);
+      expectedDate.setDate(expectedDate.getDate() - i);
+      
+      if (dayDate.getTime() !== expectedDate.getTime()) {
+        break;
+      }
+      
+      if (sortedData[i].fasted) {
+        fastingStreak++;
+      } else {
+        break;
+      }
     }
     
-    for (const day of sortedData) {
-      if (day.quranRead) quranStreak++;
-      else break;
+    // For quran streak
+    for (let i = 0; i < sortedData.length; i++) {
+      const dayDate = new Date(sortedData[i].date);
+      dayDate.setHours(0, 0, 0, 0);
+      
+      const expectedDate = new Date(today);
+      expectedDate.setDate(expectedDate.getDate() - i);
+      
+      if (dayDate.getTime() !== expectedDate.getTime()) {
+        break;
+      }
+      
+      if (sortedData[i].quranRead) {
+        quranStreak++;
+      } else {
+        break;
+      }
     }
     
     setStreak({ prayers: prayerStreak, fasting: fastingStreak, quran: quranStreak });
@@ -213,12 +288,29 @@ export default function HomeScreen() {
     return user.name.split(" ")[0];
   };
 
-  // Stats calculations
+  // Stats calculations - get actual last 7 days
   const weeklyStats = useMemo(() => {
-    const last7Days = activityData.slice(-7);
-    const totalPrayers = last7Days.reduce((sum, d) => sum + d.prayers, 0);
-    const fastDays = last7Days.filter(d => d.fasted).length;
-    const quranDays = last7Days.filter(d => d.quranRead).length;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let totalPrayers = 0;
+    let fastDays = 0;
+    let quranDays = 0;
+    
+    // Check each of the last 7 days
+    for (let i = 0; i < 7; i++) {
+      const checkDate = new Date(today);
+      checkDate.setDate(checkDate.getDate() - i);
+      const dateStr = checkDate.toISOString().split("T")[0];
+      
+      const dayData = activityData.find(d => d.date === dateStr);
+      if (dayData) {
+        totalPrayers += dayData.prayers;
+        if (dayData.fasted) fastDays++;
+        if (dayData.quranRead) quranDays++;
+      }
+    }
+    
     return { totalPrayers, fastDays, quranDays, maxPrayers: 35 };
   }, [activityData]);
 
@@ -450,16 +542,25 @@ export default function HomeScreen() {
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => router.push("/(tabs)/quran")}
+            >
               <Ionicons name="book-outline" size={24} color={colors.primary} />
               <Text style={styles.actionLabel}>Read Quran</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => router.push("/(tabs)/prayer")}
+            >
               <Ionicons name="compass-outline" size={24} color={colors.secondary} />
               <Text style={styles.actionLabel}>Find Qibla</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton}>
-              <Ionicons name="calendar-outline" size={24} color={colors.tertiary} />
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => router.push("/(tabs)/calendar")}
+            >
+              <Ionicons name="calendar-outline" size={24} color={colors.accent} />
               <Text style={styles.actionLabel}>Calendar</Text>
             </TouchableOpacity>
           </View>
