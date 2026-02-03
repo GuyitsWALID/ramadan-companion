@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Animated,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,8 +18,6 @@ import * as Location from "expo-location";
 import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
 import { router } from "expo-router";
-
-const { width } = Dimensions.get("window");
 
 interface OnboardingStep {
   id: string;
@@ -76,6 +75,7 @@ const madhabs = [
 
 export default function OnboardingScreen() {
   const { completeOnboarding } = useAuth();
+  const { width, height } = useWindowDimensions();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const scrollX = useRef(new Animated.Value(0)).current;
@@ -206,7 +206,7 @@ export default function OnboardingScreen() {
 
       case "name":
         return (
-          <View style={styles.formContent}>
+          <View style={styles.centeredFormContent}>
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Your Name</Text>
               <TextInput
@@ -224,7 +224,7 @@ export default function OnboardingScreen() {
 
       case "location":
         return (
-          <View style={styles.formContent}>
+          <View style={styles.centeredFormContent}>
             {location ? (
               <View style={styles.locationCard}>
                 <Ionicons name="checkmark-circle" size={48} color={colors.success} />
@@ -415,9 +415,10 @@ export default function OnboardingScreen() {
             [{ nativeEvent: { contentOffset: { x: scrollX } } }],
             { useNativeDriver: false }
           )}
+          contentContainerStyle={styles.scrollContent}
         >
           {steps.map((step, index) => (
-            <View key={step.id} style={styles.stepContainer}>
+            <View key={step.id} style={[styles.stepContainer, { width }]}>
               <View style={styles.stepHeader}>
                 <View style={styles.stepIconContainer}>
                   <Ionicons name={step.icon as any} size={32} color={colors.primary} />
@@ -425,7 +426,9 @@ export default function OnboardingScreen() {
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepSubtitle}>{step.subtitle}</Text>
               </View>
-              {renderStepContent(step, index)}
+              <View style={styles.stepContent}>
+                {renderStepContent(step, index)}
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -478,6 +481,7 @@ const styles = StyleSheet.create({
   progressContainer: {
     flexDirection: "row",
     justifyContent: "center",
+    alignItems: "center",
     paddingVertical: spacing.lg,
     gap: spacing.sm,
   },
@@ -491,14 +495,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     width: 24,
   },
+  scrollContent: {
+    flexGrow: 1,
+    alignItems: "center",
+  },
   stepContainer: {
-    width,
     flex: 1,
+    width: "100%",
     paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
+    alignItems: "center",
+  },
+  stepContent: {
+    flex: 1,
+    width: "100%",
+    maxWidth: 500,
   },
   stepHeader: {
     alignItems: "center",
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
+    width: "100%",
+    maxWidth: 500,
   },
   stepIconContainer: {
     width: 72,
@@ -525,6 +542,7 @@ const styles = StyleSheet.create({
   },
   welcomeContent: {
     flex: 1,
+    width: "100%",
   },
   welcomeIconContainer: {
     alignItems: "center",
@@ -540,6 +558,7 @@ const styles = StyleSheet.create({
   },
   featureList: {
     gap: spacing.md,
+    width: "100%",
   },
   featureItem: {
     flexDirection: "row",
@@ -558,9 +577,16 @@ const styles = StyleSheet.create({
   },
   formContent: {
     flex: 1,
+    width: "100%",
+  },
+  centeredFormContent: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
   },
   inputContainer: {
     marginBottom: spacing.lg,
+    width: "100%",
   },
   inputLabel: {
     fontSize: typography.sizes.sm,
@@ -757,6 +783,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.lg,
     gap: spacing.md,
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 500 + spacing.xl * 2,
   },
   backButton: {
     width: 56,

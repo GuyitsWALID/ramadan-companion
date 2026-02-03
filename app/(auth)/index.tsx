@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,9 @@ export default function AuthScreen() {
   const [code, setCode] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  // Refs for code input fields
+  const codeInputRefs = useRef<(TextInput | null)[]>([]);
 
   const handleSendCode = async () => {
     if (!email.includes("@")) {
@@ -69,18 +72,35 @@ export default function AuthScreen() {
   const handleCodeChange = (text: string, index: number) => {
     const newCode = [...code];
     
-    // Handle paste
+    // Handle paste - if user pastes full code
     if (text.length > 1) {
-      const pastedCode = text.slice(0, 6).split("");
-      for (let i = 0; i < pastedCode.length; i++) {
-        newCode[i] = pastedCode[i];
+      const pastedCode = text.replace(/[^0-9]/g, "").slice(0, 6).split("");
+      for (let i = 0; i < 6; i++) {
+        newCode[i] = pastedCode[i] || "";
       }
       setCode(newCode);
+      // Focus last filled input or the next empty one
+      const lastFilledIndex = Math.min(pastedCode.length - 1, 5);
+      codeInputRefs.current[lastFilledIndex]?.focus();
       return;
     }
 
-    newCode[index] = text;
+    // Only allow digits
+    const digit = text.replace(/[^0-9]/g, "");
+    newCode[index] = digit;
     setCode(newCode);
+
+    // Auto-focus next input when a digit is entered
+    if (digit && index < 5) {
+      codeInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleCodeKeyPress = (key: string, index: number) => {
+    // Handle backspace - move to previous input if current is empty
+    if (key === "Backspace" && !code[index] && index > 0) {
+      codeInputRefs.current[index - 1]?.focus();
+    }
   };
 
   const renderEmailStep = () => (
@@ -180,15 +200,18 @@ export default function AuthScreen() {
         {code.map((digit, index) => (
           <TextInput
             key={index}
+            ref={(ref) => { codeInputRefs.current[index] = ref; }}
             style={[
               styles.codeInput,
               digit ? styles.codeInputFilled : null,
             ]}
             value={digit}
             onChangeText={(text) => handleCodeChange(text, index)}
+            onKeyPress={({ nativeEvent }) => handleCodeKeyPress(nativeEvent.key, index)}
             keyboardType="number-pad"
-            maxLength={6}
+            maxLength={1}
             selectTextOnFocus
+            autoFocus={index === 0}
           />
         ))}
       </View>

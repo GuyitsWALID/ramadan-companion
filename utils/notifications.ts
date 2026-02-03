@@ -1,6 +1,18 @@
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
+
+// Check if running in Expo Go
+export const isExpoGo = Constants.appOwnership === "expo";
+
+// Log warning for Expo Go users (only once at startup)
+if (isExpoGo && Platform.OS === "android") {
+  console.log(
+    "[Notifications] Running in Expo Go - push notifications are limited. " +
+    "Use a development build for full notification support."
+  );
+}
 
 // Configure notification handler
 Notifications.setNotificationHandler({
@@ -13,6 +25,12 @@ Notifications.setNotificationHandler({
 
 // Request permissions with Android 13+ support
 export const requestNotificationPermissions = async () => {
+  // Skip push notification setup in Expo Go on Android
+  if (isExpoGo && Platform.OS === "android") {
+    console.log("Skipping push notification permissions in Expo Go");
+    return false;
+  }
+
   if (Platform.OS === "android") {
     const { status } = await Notifications.requestPermissionsAsync({
       android: {
@@ -31,6 +49,12 @@ export const requestNotificationPermissions = async () => {
 
 // Create prayer notification channels
 export const createPrayerNotificationChannels = async () => {
+  // Skip in Expo Go on Android
+  if (isExpoGo && Platform.OS === "android") {
+    console.log("Skipping notification channels in Expo Go");
+    return;
+  }
+
   if (Platform.OS === "android") {
     // Fajr channel (special importance)
     await Notifications.setNotificationChannelAsync("fajr-prayer", {
@@ -82,6 +106,12 @@ export const schedulePrayerNotification = async (
   time: string,
   channelId: string = "regular-prayers"
 ) => {
+  // Skip in Expo Go on Android
+  if (isExpoGo && Platform.OS === "android") {
+    console.log(`Skipping ${prayerName} notification in Expo Go`);
+    return;
+  }
+
   try {
     const [hours, minutes] = time.split(":").map(Number);
     
@@ -113,6 +143,12 @@ export const scheduleRamadanNotification = async (
   time: string,
   dayNumber: number
 ) => {
+  // Skip in Expo Go on Android
+  if (isExpoGo && Platform.OS === "android") {
+    console.log(`Skipping ${type} notification in Expo Go`);
+    return;
+  }
+
   try {
     const [hours, minutes] = time.split(":").map(Number);
     
@@ -146,6 +182,12 @@ export const schedulePrayerReminder = async (
   prayerTime: string,
   reminderMinutes: number = 15
 ) => {
+  // Skip in Expo Go on Android
+  if (isExpoGo && Platform.OS === "android") {
+    console.log(`Skipping ${prayerName} reminder in Expo Go`);
+    return;
+  }
+
   try {
     const [hours, minutes] = prayerTime.split(":").map(Number);
     const reminderTime = new Date();

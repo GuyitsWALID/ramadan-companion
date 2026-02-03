@@ -2,6 +2,7 @@
   "expo": {
     "name": "Ramadan Companion",
     "slug": "ramadan-companion",
+    "scheme": "ramadan-companion",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
