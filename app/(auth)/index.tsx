@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -20,7 +20,7 @@ import { router } from "expo-router";
 type AuthMode = "signIn" | "signUp";
 
 export default function AuthScreen() {
-  const { signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithEmail, signUpWithEmail, isAuthenticated, isOnboarded } = useAuth();
   const { colors, isDark } = useTheme();
   const shadows = getShadows(isDark);
   const styles = getStyles(colors, shadows);
@@ -32,6 +32,35 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [authPending, setAuthPending] = useState(false);
+
+  // Navigate when auth state actually changes (reactive, not in the async handler)
+  // Navigate when auth state actually changes (reactive, not in the async handler)
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log("[AuthScreen] Authenticated! isOnboarded:", isOnboarded);
+      setLoading(false);
+      setAuthPending(false);
+      if (isOnboarded) {
+        router.replace("/(tabs)");
+      } else {
+        router.replace("/(auth)/onboarding");
+      }
+    }
+  }, [isAuthenticated, isOnboarded]);
+
+  // Timeout: if auth state doesn't update within 15s, stop loading
+  useEffect(() => {
+    if (authPending && !isAuthenticated) {
+      const timeout = setTimeout(() => {
+        console.log("[AuthScreen] Auth timed out - isAuthenticated:", isAuthenticated);
+        setAuthPending(false);
+        setLoading(false);
+        setError("Authentication timed out. Please check your Metro console for [Auth] logs and try again.");
+      }, 15000);
+      return () => clearTimeout(timeout);
+    }
+  }, [authPending, isAuthenticated]);
 
   const handleSubmit = async () => {
     setError("");
@@ -58,12 +87,14 @@ export default function AuthScreen() {
       } else {
         await signInWithEmail(email, password);
       }
-      // Navigation handled by NavigationGuard in _layout.tsx
+      // Don't navigate here — the useEffect watching isAuthenticated handles it.
+      // Keep loading visible until the auth state updates and triggers navigation.
+      setAuthPending(true);
     } catch (err: any) {
       setError(err.message || "Authentication failed. Please try again.");
-    } finally {
       setLoading(false);
     }
+    // No finally — loading stays on until navigation or timeout
   };
 
   const toggleMode = () => {

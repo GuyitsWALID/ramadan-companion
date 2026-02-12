@@ -21,8 +21,10 @@ import { OfflineBanner } from "../components/OfflineBanner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// 1. Initialize Convex
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
+// 1. Initialize Convex (verbose for debugging auth)
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
+  verbose: true,
+});
 
 // 2. Keep Splash Screen visible
 SplashScreen.preventAutoHideAsync();
@@ -37,12 +39,13 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
-    const inTabsGroup = segments[0] === "(tabs)";
+
+    console.log("[NavGuard]", { isAuthenticated, isOnboarded, inAuthGroup, segments: segments.join("/") });
 
     if (!isAuthenticated && !inAuthGroup) {
       // User is not authenticated, redirect to auth
       router.replace("/(auth)");
-    } else if (isAuthenticated && !isOnboarded && segments[1] !== "onboarding") {
+    } else if (isAuthenticated && !isOnboarded && inAuthGroup && segments[1] !== "onboarding") {
       // User is authenticated but hasn't completed onboarding
       router.replace("/(auth)/onboarding");
     } else if (isAuthenticated && isOnboarded && inAuthGroup) {

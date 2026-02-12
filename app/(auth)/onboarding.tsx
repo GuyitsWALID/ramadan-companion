@@ -75,11 +75,12 @@ const madhabs = [
 ];
 
 export default function OnboardingScreen() {
-  const { completeOnboarding } = useAuth();
+  const { completeOnboarding, isAuthenticated } = useAuth();
   const { colors, shadows } = useTheme();
   const { width, height } = useWindowDimensions();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const scrollX = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -151,6 +152,14 @@ export default function OnboardingScreen() {
 
   const handleComplete = async () => {
     setLoading(true);
+    setError("");
+    
+    if (!isAuthenticated) {
+      setError("Please wait, authenticating...");
+      setLoading(false);
+      return;
+    }
+    
     try {
       await completeOnboarding({
         name,
@@ -162,8 +171,9 @@ export default function OnboardingScreen() {
         ramadanReminders,
       });
       router.replace("/(tabs)");
-    } catch (error) {
-      console.error("Error completing onboarding:", error);
+    } catch (err: any) {
+      console.error("Error completing onboarding:", err);
+      setError(err?.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -444,6 +454,12 @@ export default function OnboardingScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
           )}
+          
+          {error ? (
+            <Text style={{ color: colors.error || '#ef4444', textAlign: 'center', marginBottom: 8, fontSize: 14 }}>
+              {error}
+            </Text>
+          ) : null}
           
           <TouchableOpacity
             style={[

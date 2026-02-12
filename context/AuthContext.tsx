@@ -53,6 +53,40 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ONBOARDING_STORAGE_KEY = "@ramadan_onboarding";
 
+// Helper: clear stale Convex Auth tokens from AsyncStorage
+// This prevents old/invalid tokens from interfering with fresh sign-in/sign-up
+async function clearStaleAuthTokens() {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const authKeys = keys.filter(k => k.startsWith('__convexAuth'));
+    if (authKeys.length > 0) {
+      await AsyncStorage.multiRemove(authKeys);
+      console.log('[Auth] Cleared stale auth tokens:', authKeys.length);
+    }
+  } catch (e) {
+    console.error('[Auth] Error clearing stale tokens:', e);
+  }
+}
+
+// Helper: retry a mutation with exponential backoff
+async function retryMutation<T>(fn: () => Promise<T>, maxRetries = 3, baseDelay = 1500): Promise<T> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isAuthError = error?.message?.includes('Not authenticated') || error?.message?.includes('not authenticated');
+      if (isAuthError && attempt < maxRetries - 1) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.log(`[Auth] Mutation failed (attempt ${attempt + 1}), retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const { signIn, signOut: convexSignOut } = useAuthActions();
@@ -98,13 +132,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Auto-create profile when user first authenticates
   useEffect(() => {
     if (isAuthenticated && profile === null && !authLoading) {
+      console.log("[Auth] Creating profile for new user");
       getOrCreateProfileMutation({}).catch(console.error);
     }
   }, [isAuthenticated, profile, authLoading]);
 
+  // Debug: log auth state changes
+  useEffect(() => {
+    console.log("[Auth] State:", { isAuthenticated, authLoading, profileStatus: profile === undefined ? 'loading' : profile === null ? 'null' : 'loaded', isOnboarded, onboardingLoaded });
+  }, [isAuthenticated, authLoading, profile, isOnboarded, onboardingLoaded]);
+
   const signInWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      await signIn("password", { email, password, flow: "signIn" });
+      console.log("[Auth] Signing in...");
+      const result = await signIn("password", { email, password, flow: "signIn" });
+      console.log("[Auth] Sign in result:", JSON.stringify(result));
     } catch (error: any) {
       console.error("Sign in error:", error);
       throw new Error(error?.message || "Failed to sign in. Please check your credentials.");
@@ -113,7 +155,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      await signIn("password", { email, password, flow: "signUp" });
+      console.log("[Auth] Signing up...");
+      const result = await signIn("password", { email, password, flow: "signUp" });
+      console.log("[Auth] Sign up result:", JSON.stringify(result));
     } catch (error: any) {
       console.error("Sign up error:", error);
       throw new Error(error?.message || "Failed to create account. Please try again.");
@@ -121,8 +165,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [signIn]);
 
   const handleCompleteOnboarding = useCallback(async (data: OnboardingData) => {
+    console.log("[Auth] Completing onboarding, isAuthenticated:", isAuthenticated);
     try {
-      await completeOnboardingMutation({
+      // Retry with backoff in case auth token hasn't fully propagated yet
+      await retryMutation(() => completeOnboardingMutation({
         name: data.name,
         location: data.location,
         calculationMethod: data.calculationMethod,
@@ -130,15 +176,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         prayerReminders: data.prayerReminders,
         ramadanReminders: data.ramadanReminders,
         quranGoal: data.quranGoal,
-      });
+      }));
 
       await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(true));
       setIsOnboarded(true);
+      console.log("[Auth] Onboarding completed successfully");
     } catch (error) {
       console.error("Error completing onboarding:", error);
       throw error;
     }
-  }, [completeOnboardingMutation]);
+  }, [completeOnboardingMutation, isAuthenticated]);
 
   const handleSignOut = useCallback(async () => {
     try {
@@ -168,7 +215,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [updateProfileMutation]);
 
-  const isLoading = authLoading || !onboardingLoaded || (isAuthenticated && profile === undefined);
+  // Don't block on profile query - it can cause infinite loading if the query
+  // never resolves (e.g. auth token timing). Use authLoading + onboardingLoaded only.
+  const isLoading = authLoading || !onboardingLoaded;
 
   return (
     <AuthContext.Provider
