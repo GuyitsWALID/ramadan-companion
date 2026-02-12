@@ -193,6 +193,7 @@ export default function QuranReader({
   const toastAnim = useRef(new Animated.Value(0)).current;
 
   const scrollRef = useRef<ScrollView>(null);
+  const versePositions = useRef<Record<number, number>>({});
 
   // ─── Effects ────────────────────────────────────────────────────
   useEffect(() => {
@@ -208,9 +209,15 @@ export default function QuranReader({
     };
   }, [sound]);
 
-  // Keep ref in sync
+  // Keep ref in sync + auto-scroll to playing verse
   useEffect(() => {
     playingVerseRef.current = playingVerse;
+    if (playingVerse && versePositions.current[playingVerse] !== undefined) {
+      scrollRef.current?.scrollTo({
+        y: Math.max(0, versePositions.current[playingVerse] - 120),
+        animated: true,
+      });
+    }
   }, [playingVerse]);
 
   // ─── Sidebar animation ────────────────────────────────────────
@@ -264,11 +271,12 @@ export default function QuranReader({
   };
 
   // ─── Audio ────────────────────────────────────────────────────
-  const playVerse = async (verseNum: number) => {
+  const playVerse = async (verseNum: number, continuous = true) => {
     const data = audioData.find((v) => v.number === verseNum);
     if (!data?.audio) return;
     try {
       if (sound) await sound.unloadAsync();
+      if (continuous) setPlayingFullSurah(true);
       const { sound: s } = await Audio.Sound.createAsync(
         { uri: data.audio },
         { shouldPlay: true },
@@ -278,7 +286,7 @@ export default function QuranReader({
             if (playingFullSurah && surahContent) {
               const next = (playingVerseRef.current || 0) + 1;
               if (next <= surahContent.numberOfAyahs) {
-                setTimeout(() => playVerse(next), 300);
+                setTimeout(() => playVerse(next, true), 300);
               } else {
                 setPlayingFullSurah(false);
                 setPlayingVerse(null);
@@ -559,6 +567,9 @@ export default function QuranReader({
       {(surahContent?.verses || []).filter((v) => splitBismillah(v.arabic, v.number).rest.length > 0).map((verse) => (
         <View
           key={verse.number}
+          onLayout={(e) => {
+            versePositions.current[verse.number] = e.nativeEvent.layout.y;
+          }}
           style={[
             styles.verseCard,
             playingVerse === verse.number && styles.verseCardPlaying,
@@ -664,10 +675,20 @@ export default function QuranReader({
               <React.Fragment key={v.number}>
                 <Text
                   style={[
-                    playingVerse === v.number && { color: colors.primary, backgroundColor: colors.primary + "15" },
+                    playingVerse === v.number && {
+                      color: colors.primary,
+                      backgroundColor: colors.primary + "18",
+                      borderRadius: 6,
+                    },
                   ]}
                   onPress={() => {
                     onVerseRead?.(v.number);
+                    if (playingVerse === v.number && isPlaying) {
+                      sound?.pauseAsync();
+                      setIsPlaying(false);
+                    } else {
+                      playVerse(v.number);
+                    }
                   }}
                 >
                   {splitBismillah(v.arabic, v.number).rest}
@@ -862,12 +883,29 @@ export default function QuranReader({
         )}
 
         {/* ── Audio player bar ──────────────────────────────── */}
-        {isPlaying && playingVerse && (
+        {playingVerse && (
           <View style={styles.audioBar}>
             <Ionicons name="musical-notes" size={18} color={colors.primary} />
             <Text style={styles.audioBarText} numberOfLines={1}>
               Verse {playingVerse} · {selectedReciter.englishName}
             </Text>
+            <TouchableOpacity
+              onPress={async () => {
+                if (isPlaying && sound) {
+                  await sound.pauseAsync();
+                  setIsPlaying(false);
+                } else if (!isPlaying && sound) {
+                  await sound.playAsync();
+                  setIsPlaying(true);
+                }
+              }}
+            >
+              <Ionicons
+                name={isPlaying ? "pause-circle" : "play-circle"}
+                size={30}
+                color={colors.primary}
+              />
+            </TouchableOpacity>
             <TouchableOpacity onPress={stopAudio}>
               <Ionicons name="stop-circle" size={30} color={colors.error} />
             </TouchableOpacity>
@@ -1012,6 +1050,7 @@ const getStyles = (colors: any, shadows: any) =>
     verseCardPlaying: {
       borderWidth: 2,
       borderColor: colors.primary,
+      backgroundColor: colors.primary + "08",
     },
     verseHeader: {
       flexDirection: "row",
