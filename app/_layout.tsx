@@ -19,6 +19,7 @@ import { lightColors as colors } from "../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { OfflineBanner } from "../components/OfflineBanner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // 1. Initialize Convex
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
@@ -111,7 +112,7 @@ export default function RootLayout() {
   // 6. App Content with Auth Flow
   return (
     <ErrorBoundary>
-      <ConvexAuthProvider client={convex}>
+      <ConvexAuthProvider client={convex} storage={AsyncStorage}>
         <ThemeProvider>
           <AuthProvider>
             <UserProvider>

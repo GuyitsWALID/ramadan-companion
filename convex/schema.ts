@@ -91,25 +91,8 @@ export default defineSchema({
     .index("by_userId", ["userId"]),
 
   // Legacy tables (keeping for backward compatibility during migration)
-  users: defineTable({
-    email: v.string(),
-    name: v.optional(v.string()),
-    location: v.optional(v.object({
-      latitude: v.number(),
-      longitude: v.number(),
-      city: v.optional(v.string()),
-      country: v.optional(v.string()),
-    })),
-    prayerReminders: v.optional(v.boolean()),
-    quranReadingPlan: v.optional(v.object({
-      dailyVerses: v.number(),
-      currentJuz: v.number(),
-      completedJuz: v.array(v.number()),
-      startDate: v.string(),
-    })),
-    createdAt: v.string(),
-  })
-    .index("by_email", ["email"]),
+  // NOTE: "users" table is now managed by authTables (from @convex-dev/auth)
+  // Do NOT redefine it here or it will conflict with Convex Auth.
 
   prayerTimes: defineTable({
     userId: v.id("users"),
