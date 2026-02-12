@@ -2,7 +2,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "rea
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, typography, spacing, borderRadius, shadows } from "../constants/theme";
+import { typography, spacing, borderRadius } from "../constants/theme";
+import { useTheme } from "../context/ThemeContext";
 
 interface DonationTier {
   id: string;
@@ -63,6 +64,8 @@ const donationTiers: DonationTier[] = [
 
 export default function SupportModal() {
   const router = useRouter();
+  const { colors, shadows } = useTheme();
+  const styles = getStyles(colors, shadows);
   const [selectedTier, setSelectedTier] = useState<DonationTier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -173,7 +176,7 @@ export default function SupportModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",

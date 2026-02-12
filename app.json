@@ -11,21 +11,25 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a472a"
+      "backgroundColor": "#0D5C4D"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ramadancompanion.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Location access is needed for accurate prayer times"
+        "NSLocationWhenInUseUsageDescription": "Location access is needed for accurate prayer times and Qibla direction",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
+      "package": "com.ramadancompanion.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a472a"
+        "backgroundColor": "#0D5C4D"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -43,8 +47,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
-          "color": "#1a472a",
+          "color": "#0D5C4D",
           "defaultChannel": "prayer-reminders"
         }
       ],
@@ -54,7 +57,8 @@
     "extra": {
       "eas": {
         "projectId": "ramadan-companion"
-      }
+      },
+      "privacyPolicyUrl": "https://ramadancompanion.app/privacy"
     }
   }
 }

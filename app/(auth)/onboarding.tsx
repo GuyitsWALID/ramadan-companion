@@ -15,8 +15,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { colors, typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 import { useAuth } from "../../context/AuthContext";
+import { useTheme } from "../../context/ThemeContext";
 import { router } from "expo-router";
 
 interface OnboardingStep {
@@ -75,6 +76,7 @@ const madhabs = [
 
 export default function OnboardingScreen() {
   const { completeOnboarding } = useAuth();
+  const { colors, shadows } = useTheme();
   const { width, height } = useWindowDimensions();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -95,6 +97,8 @@ export default function OnboardingScreen() {
   const [quranGoal, setQuranGoal] = useState(20);
   const [prayerReminders, setPrayerReminders] = useState(true);
   const [ramadanReminders, setRamadanReminders] = useState(true);
+
+  const styles = getStyles(colors, shadows);
 
   const goToStep = (stepIndex: number) => {
     scrollViewRef.current?.scrollTo({ x: stepIndex * width, animated: true });
@@ -470,7 +474,7 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

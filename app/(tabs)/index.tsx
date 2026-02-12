@@ -10,6 +10,8 @@ import { typography, spacing, borderRadius } from "../../constants/theme";
 import ActivityHeatMap from "../../components/ActivityHeatMap";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
+import { api } from "../../convex/_generated/api";
 
 // Helper to calculate Ramadan day (simplified - assumes Ramadan 2026 starts Feb 17)
 const getRamadanDay = (): { day: number; total: number } | null => {
@@ -53,11 +55,23 @@ export default function HomeScreen() {
   const [todayFasted, setTodayFasted] = useState(false);
   const [streak, setStreak] = useState({ prayers: 0, fasting: 0, quran: 0 });
 
+  // Convex integration
+  const { isAuthenticated } = useConvexAuth();
+  const convexStreaks = useQuery(api.tracking.getStreaks, isAuthenticated ? {} : "skip");
+  const saveFastingDayMut = useMutation(api.tracking.saveFastingDay);
+
   // Dynamic styles
   const styles = getStyles(colors, shadows);
 
   // Merge user data - auth user takes priority
   const user = authUser || userContextUser;
+
+  // Use Convex streaks when available, fallback to local
+  const displayStreak = useMemo(() => ({
+    prayers: convexStreaks?.prayerStreak ?? streak.prayers,
+    fasting: convexStreaks?.fastingStreak ?? streak.fasting,
+    quran: convexStreaks?.quranStreak ?? streak.quran,
+  }), [convexStreaks, streak]);
 
   const ramadanDay = getRamadanDay();
   const completedPrayers = prayerTimes.filter(p => p.completed && p.name !== "Sunrise").length;
@@ -74,7 +88,7 @@ export default function HomeScreen() {
     if (prayerTimes.length > 0) {
       updateTodayActivity();
     }
-  }, [completedPrayers, todayFasted, updateTodayActivity]);
+  }, [completedPrayers, todayFasted]);
 
   // Check data version and reset if outdated (clears old sample data)
   const checkAndResetDataIfNeeded = async () => {
@@ -144,6 +158,18 @@ export default function HomeScreen() {
       
       await AsyncStorage.setItem(FASTING_KEY, JSON.stringify(fastingDays));
       setTodayFasted(!todayFasted);
+
+      // Also persist to Convex
+      if (isAuthenticated) {
+        const ramadan = getRamadanDay();
+        if (ramadan) {
+          saveFastingDayMut({
+            date: today,
+            ramadanDay: ramadan.day,
+            status: todayFasted ? "missed" : "fasted",
+          }).catch(err => console.error("Error saving fasting to Convex:", err));
+        }
+      }
     } catch (error) {
       console.error("Error toggling fasting:", error);
     }
@@ -338,7 +364,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.streakBadge}>
             <Ionicons name="flame" size={18} color={colors.warning} />
-            <Text style={styles.streakText}>{streak.prayers}</Text>
+            <Text style={styles.streakText}>{displayStreak.prayers}</Text>
           </View>
         </View>
 
@@ -468,17 +494,17 @@ export default function HomeScreen() {
           <View style={styles.streaksRow}>
             <View style={styles.streakItem}>
               <Ionicons name="flame" size={28} color={colors.warning} />
-              <Text style={styles.streakNumber}>{streak.prayers}</Text>
+              <Text style={styles.streakNumber}>{displayStreak.prayers}</Text>
               <Text style={styles.streakLabel}>Prayer Days</Text>
             </View>
             <View style={styles.streakItem}>
               <Ionicons name="restaurant" size={28} color={colors.secondary} />
-              <Text style={styles.streakNumber}>{streak.fasting}</Text>
+              <Text style={styles.streakNumber}>{displayStreak.fasting}</Text>
               <Text style={styles.streakLabel}>Fast Days</Text>
             </View>
             <View style={styles.streakItem}>
               <Ionicons name="book" size={28} color={colors.success} />
-              <Text style={styles.streakNumber}>{streak.quran}</Text>
+              <Text style={styles.streakNumber}>{displayStreak.quran}</Text>
               <Text style={styles.streakLabel}>Quran Days</Text>
             </View>
           </View>

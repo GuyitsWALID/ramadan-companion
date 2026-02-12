@@ -14,7 +14,8 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, typography, spacing, borderRadius } from "../constants/theme";
+import { typography, spacing, borderRadius } from "../constants/theme";
+import { useTheme } from "../context/ThemeContext";
 
 interface OfflineBannerProps {
   isOffline: boolean;
@@ -35,6 +36,8 @@ export function OfflineBanner({
   onSync,
   lastSyncTime,
 }: OfflineBannerProps) {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
   const slideAnim = useRef(new Animated.Value(-100)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -125,6 +128,9 @@ interface SyncStatusBadgeProps {
 }
 
 export function SyncStatusBadge({ isOffline, pendingActions, syncPending }: SyncStatusBadgeProps) {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+
   if (syncPending) {
     return (
       <View style={[styles.badge, styles.syncingBadge]}>
@@ -162,6 +168,9 @@ interface CacheIndicatorProps {
 }
 
 export function CacheIndicator({ isCached, cacheAge }: CacheIndicatorProps) {
+  const { colors } = useTheme();
+  const styles = getStyles(colors);
+
   if (!isCached) return null;
 
   return (
@@ -174,7 +183,7 @@ export function CacheIndicator({ isCached, cacheAge }: CacheIndicatorProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any) => StyleSheet.create({
   container: {
     position: "absolute",
     top: 0,

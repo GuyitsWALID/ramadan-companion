@@ -3,6 +3,8 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useMutation, useConvexAuth } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useUser } from "../../context/UserContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -80,6 +82,8 @@ export default function CalendarScreen() {
   const { prayerTimes, location, loading: prayerLoading } = usePrayerTimes();
   const { user } = useUser();
   const { colors, shadows } = useTheme();
+  const { isAuthenticated } = useConvexAuth();
+  const saveFastingDayMut = useMutation(api.tracking.saveFastingDay);
   
   const styles = getStyles(colors, shadows);
   
@@ -142,7 +146,19 @@ export default function CalendarScreen() {
   const updateFastingStatus = useCallback((day: number, status: FastingStatus) => {
     const newRecord = { ...fastingRecord, [day]: status };
     saveFastingRecord(newRecord);
-  }, [fastingRecord]);
+
+    // Also persist to Convex for the stats dashboard
+    if (isAuthenticated && status !== "upcoming") {
+      const dayDate = new Date(RAMADAN_START_2026);
+      dayDate.setDate(dayDate.getDate() + day - 1);
+      const dateStr = dayDate.toISOString().split("T")[0];
+      saveFastingDayMut({
+        date: dateStr,
+        ramadanDay: day,
+        status: status as "fasted" | "missed" | "excused",
+      }).catch(err => console.error("Error saving fasting to Convex:", err));
+    }
+  }, [fastingRecord, isAuthenticated]);
 
   // Countdown timer
   useEffect(() => {

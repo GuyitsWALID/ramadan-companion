@@ -1,4 +1,5 @@
 import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
@@ -17,6 +18,7 @@ import { ThemeProvider, useTheme } from "../context/ThemeContext";
 import { lightColors as colors } from "../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { OfflineBanner } from "../components/OfflineBanner";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 // 1. Initialize Convex
 const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
@@ -108,26 +110,29 @@ export default function RootLayout() {
 
   // 6. App Content with Auth Flow
   return (
-    <ConvexProvider client={convex}>
-      <ThemeProvider>
-        <AuthProvider>
-          <UserProvider>
-            <NetworkProvider>
-              <NavigationGuard>
-                <OfflineBannerWrapper>
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="support" options={{ presentation: "modal" }} />
-                    <Stack.Screen name="widgets" options={{ presentation: "modal" }} />
-                  </Stack>
-                </OfflineBannerWrapper>
-              </NavigationGuard>
-            </NetworkProvider>
-          </UserProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </ConvexProvider>
+    <ErrorBoundary>
+      <ConvexAuthProvider client={convex}>
+        <ThemeProvider>
+          <AuthProvider>
+            <UserProvider>
+              <NetworkProvider>
+                <NavigationGuard>
+                  <OfflineBannerWrapper>
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen name="support" options={{ presentation: "modal" }} />
+                      <Stack.Screen name="widgets" options={{ presentation: "modal" }} />
+                      <Stack.Screen name="privacy" options={{ presentation: "modal" }} />
+                    </Stack>
+                  </OfflineBannerWrapper>
+                </NavigationGuard>
+              </NetworkProvider>
+            </UserProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </ConvexAuthProvider>
+    </ErrorBoundary>
   );
 }
 

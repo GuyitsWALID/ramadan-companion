@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { Id } from "../convex/_generated/dataModel";
 
 interface Location {
   latitude: number;
@@ -17,217 +18,170 @@ interface OnboardingData {
   calculationMethod: string;
   madhab: string;
   prayerReminders: boolean;
-  quranGoal: number; // verses per day
+  quranGoal: number;
   ramadanReminders: boolean;
 }
 
-interface User {
-  _id: Id<"users">;
+export interface UserProfile {
+  _id: any;
+  userId: string;
   email: string;
   name?: string;
   location?: Location;
-  onboardingCompleted?: boolean;
   calculationMethod?: string;
   madhab?: string;
+  prayerReminders?: boolean;
+  ramadanReminders?: boolean;
   quranGoal?: number;
+  onboardingCompleted?: boolean;
   createdAt?: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: UserProfile | null;
   isAuthenticated: boolean;
   isOnboarded: boolean;
   isLoading: boolean;
-  signInWithEmail: (email: string) => Promise<void>;
-  verifyCode: (code: string) => Promise<{ success: boolean; needsOnboarding: boolean }>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   completeOnboarding: (data: OnboardingData) => Promise<void>;
   signOut: () => Promise<void>;
-  updateUser: (updates: Partial<User>) => Promise<void>;
+  updateUser: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = "@ramadan_auth";
 const ONBOARDING_STORAGE_KEY = "@ramadan_onboarding";
 
-// Simple verification code storage (in production, use secure server-side verification)
-let pendingVerifications: { [email: string]: { code: string; expires: number } } = {};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const { signIn, signOut: convexSignOut } = useAuthActions();
+  
   const [isOnboarded, setIsOnboarded] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [onboardingLoaded, setOnboardingLoaded] = useState(false);
 
-  // Convex mutations
-  const createUserMutation = useMutation(api.users.createUser);
-  const updateUserLocationMutation = useMutation(api.users.updateUserLocation);
+  // Fetch user profile from Convex when authenticated
+  const profile = useQuery(
+    api.tracking.getProfile,
+    isAuthenticated ? {} : "skip"
+  );
+  
+  const getOrCreateProfileMutation = useMutation(api.tracking.getOrCreateProfile);
+  const completeOnboardingMutation = useMutation(api.tracking.completeOnboarding);
+  const updateProfileMutation = useMutation(api.tracking.updateProfile);
 
-  // Load auth state on mount
+  // Load onboarding state from AsyncStorage
   useEffect(() => {
-    loadAuthState();
+    const loadOnboardingState = async () => {
+      try {
+        const data = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
+        if (data) {
+          setIsOnboarded(JSON.parse(data));
+        }
+      } catch (error) {
+        console.error("Error loading onboarding state:", error);
+      } finally {
+        setOnboardingLoaded(true);
+      }
+    };
+    loadOnboardingState();
   }, []);
 
-  const loadAuthState = async () => {
-    try {
-      const [authData, onboardingData] = await Promise.all([
-        AsyncStorage.getItem(AUTH_STORAGE_KEY),
-        AsyncStorage.getItem(ONBOARDING_STORAGE_KEY),
-      ]);
-
-      if (authData) {
-        const parsedUser = JSON.parse(authData);
-        setUser(parsedUser);
-      }
-
-      if (onboardingData) {
-        setIsOnboarded(JSON.parse(onboardingData));
-      }
-    } catch (error) {
-      console.error("Error loading auth state:", error);
-    } finally {
-      setIsLoading(false);
+  // When we get a profile, check onboarding status
+  useEffect(() => {
+    if (profile?.onboardingCompleted) {
+      setIsOnboarded(true);
+      AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(true)).catch(console.error);
     }
-  };
+  }, [profile]);
 
-  const generateVerificationCode = (): string => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
-
-  const signInWithEmail = async (email: string): Promise<void> => {
-    try {
-      // Generate verification code
-      const code = generateVerificationCode();
-      const expires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-      // Store pending verification and email
-      pendingVerifications[email] = { code, expires };
-      setPendingEmail(email);
-
-      // In production, you would send this via email
-      // For demo purposes, we'll log the code
-      console.log(`Verification code for ${email}: ${code}`);
-      
-      // Show alert for demo purposes
-      alert(`Demo: Your verification code is ${code}`);
-    } catch (error) {
-      console.error("Error sending verification:", error);
-      throw new Error("Failed to send verification code");
+  // Auto-create profile when user first authenticates
+  useEffect(() => {
+    if (isAuthenticated && profile === null && !authLoading) {
+      getOrCreateProfileMutation({}).catch(console.error);
     }
-  };
+  }, [isAuthenticated, profile, authLoading]);
 
-  const verifyCode = async (code: string): Promise<{ success: boolean; needsOnboarding: boolean }> => {
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      if (!pendingEmail) {
-        throw new Error("No pending email verification");
-      }
-
-      const pending = pendingVerifications[pendingEmail];
-      
-      if (!pending) {
-        throw new Error("Verification expired. Please try again.");
-      }
-
-      if (Date.now() > pending.expires) {
-        delete pendingVerifications[pendingEmail];
-        throw new Error("Verification code expired. Please request a new one.");
-      }
-
-      if (pending.code !== code) {
-        throw new Error("Invalid verification code");
-      }
-
-      // Code is valid - create or get user
-      delete pendingVerifications[pendingEmail];
-      const email = pendingEmail;
-      setPendingEmail(null);
-
-      // Create user in Convex
-      const userId = await createUserMutation({ email });
-
-      const newUser: User = {
-        _id: userId,
-        email,
-        createdAt: new Date().toISOString(),
-      };
-
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newUser));
-      setUser(newUser);
-
-      // Check if user needs onboarding
-      const needsOnboarding = !isOnboarded;
-
-      return { success: true, needsOnboarding };
+      await signIn("password", { email, password, flow: "signIn" });
     } catch (error: any) {
-      console.error("Error verifying code:", error);
-      throw error;
+      console.error("Sign in error:", error);
+      throw new Error(error?.message || "Failed to sign in. Please check your credentials.");
     }
-  };
+  }, [signIn]);
 
-  const completeOnboarding = async (data: OnboardingData) => {
-    if (!user) return;
-
+  const signUpWithEmail = useCallback(async (email: string, password: string) => {
     try {
-      // Update user with onboarding data
-      const updatedUser: User = {
-        ...user,
+      await signIn("password", { email, password, flow: "signUp" });
+    } catch (error: any) {
+      console.error("Sign up error:", error);
+      throw new Error(error?.message || "Failed to create account. Please try again.");
+    }
+  }, [signIn]);
+
+  const handleCompleteOnboarding = useCallback(async (data: OnboardingData) => {
+    try {
+      await completeOnboardingMutation({
         name: data.name,
         location: data.location,
         calculationMethod: data.calculationMethod,
         madhab: data.madhab,
+        prayerReminders: data.prayerReminders,
+        ramadanReminders: data.ramadanReminders,
         quranGoal: data.quranGoal,
-        onboardingCompleted: true,
-      };
+      });
 
-      // Update in Convex if location is provided
-      if (data.location && user._id) {
-        await updateUserLocationMutation({
-          userId: user._id,
-          location: data.location,
-        });
-      }
-
-      await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
       await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify(true));
-
-      setUser(updatedUser);
       setIsOnboarded(true);
     } catch (error) {
       console.error("Error completing onboarding:", error);
       throw error;
     }
-  };
+  }, [completeOnboardingMutation]);
 
-  const signOut = async () => {
+  const handleSignOut = useCallback(async () => {
     try {
-      await AsyncStorage.multiRemove([AUTH_STORAGE_KEY, ONBOARDING_STORAGE_KEY]);
-      setUser(null);
+      await convexSignOut();
+      await AsyncStorage.removeItem(ONBOARDING_STORAGE_KEY);
       setIsOnboarded(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
-  };
+  }, [convexSignOut]);
 
-  const updateUser = async (updates: Partial<User>) => {
-    if (!user) return;
+  const handleUpdateUser = useCallback(async (updates: Partial<UserProfile>) => {
+    try {
+      await updateProfileMutation({
+        name: updates.name,
+        location: updates.location,
+        calculationMethod: updates.calculationMethod,
+        madhab: updates.madhab,
+        prayerReminders: updates.prayerReminders,
+        ramadanReminders: updates.ramadanReminders,
+        quranGoal: updates.quranGoal,
+        onboardingCompleted: updates.onboardingCompleted,
+      });
+    } catch (error) {
+      console.error("Error updating user:", error);
+      throw error;
+    }
+  }, [updateProfileMutation]);
 
-    const updatedUser = { ...user, ...updates };
-    await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
-    setUser(updatedUser);
-  };
+  const isLoading = authLoading || !onboardingLoaded || (isAuthenticated && profile === undefined);
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        isAuthenticated: !!user,
+        user: profile as UserProfile | null,
+        isAuthenticated,
         isOnboarded,
         isLoading,
         signInWithEmail,
-        verifyCode,
-        completeOnboarding,
-        signOut,
-        updateUser,
+        signUpWithEmail,
+        completeOnboarding: handleCompleteOnboarding,
+        signOut: handleSignOut,
+        updateUser: handleUpdateUser,
       }}
     >
       {children}

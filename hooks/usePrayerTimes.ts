@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useState, useEffect, useRef } from "react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { 
   calculateTodayPrayerTimes, 
@@ -26,6 +26,17 @@ export const usePrayerTimes = () => {
   const [prayerSettings, setPrayerSettings] = useState<PrayerSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [nextPrayer, setNextPrayer] = useState<PrayerTime | null>(null);
+
+  // Convex integration for persistence
+  const { isAuthenticated } = useConvexAuth();
+  const todayStr = new Date().toISOString().split("T")[0];
+  const savedCompletion = useQuery(
+    api.tracking.getPrayerCompletion,
+    isAuthenticated ? { date: todayStr } : "skip"
+  );
+  const savePrayerCompletionMut = useMutation(api.tracking.savePrayerCompletion);
+  // Track whether we've applied saved completions to avoid re-applying
+  const appliedSavedRef = useRef(false);
 
   // Load saved data
   useEffect(() => {
@@ -106,18 +117,33 @@ export const usePrayerTimes = () => {
     }
   };
 
+  // Sync saved completion data from Convex (overrides auto-completion)
+  useEffect(() => {
+    if (savedCompletion && prayerTimes.length > 0) {
+      const nameToKey: Record<string, string> = {
+        Fajr: "fajr", Dhuhr: "dhuhr", Asr: "asr",
+        Maghrib: "maghrib", Isha: "isha",
+      };
+      const updated = prayerTimes.map(prayer => {
+        const key = nameToKey[prayer.name];
+        if (key && key in savedCompletion) {
+          return { ...prayer, completed: (savedCompletion as any)[key] as boolean };
+        }
+        return prayer;
+      });
+      const hasChanges = updated.some((p, i) => p.completed !== prayerTimes[i].completed);
+      if (hasChanges) {
+        setPrayerTimes(updated);
+        appliedSavedRef.current = true;
+      }
+    }
+  }, [savedCompletion]);
+
   // Toggle prayer completion
   const togglePrayerCompletion = async (prayerName: string) => {
     const updatedPrayers = prayerTimes.map(prayer => {
       if (prayer.name === prayerName && prayer.completed !== null) {
-        const newCompleted = !prayer.completed;
-        
-        // Save to database/log user activity
-        if (newCompleted) {
-          console.log(`Prayer completed: ${prayerName} at ${new Date().toISOString()}`);
-        }
-        
-        return { ...prayer, completed: newCompleted };
+        return { ...prayer, completed: !prayer.completed };
       }
       return prayer;
     });
@@ -128,6 +154,28 @@ export const usePrayerTimes = () => {
     const upcomingPrayer = updatedPrayers.find(p => p.isUpcoming);
     if (upcomingPrayer) {
       setNextPrayer(upcomingPrayer);
+    }
+
+    // Persist to Convex
+    if (isAuthenticated) {
+      const state: Record<string, boolean> = {};
+      updatedPrayers.forEach(p => {
+        if (p.name !== "Sunrise") {
+          state[p.name.toLowerCase()] = p.completed;
+        }
+      });
+      try {
+        await savePrayerCompletionMut({
+          date: todayStr,
+          fajr: state["fajr"] ?? false,
+          dhuhr: state["dhuhr"] ?? false,
+          asr: state["asr"] ?? false,
+          maghrib: state["maghrib"] ?? false,
+          isha: state["isha"] ?? false,
+        });
+      } catch (err) {
+        console.error("Error saving prayer completion to Convex:", err);
+      }
     }
   };
 

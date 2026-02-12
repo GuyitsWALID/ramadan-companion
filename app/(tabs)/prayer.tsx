@@ -2,6 +2,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "
 import { useEffect, useState, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery, useConvexAuth } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useNotificationManager } from "../../hooks/useNotificationManager";
 import { useAuth } from "../../context/AuthContext";
@@ -26,6 +28,11 @@ export default function PrayerScreen() {
   } = usePrayerTimes();
 
   const { scheduleDailyPrayerNotifications, notificationSettings } = useNotificationManager();
+
+  // Convex data for real stats
+  const { isAuthenticated } = useConvexAuth();
+  const streaks = useQuery(api.tracking.getStreaks, isAuthenticated ? {} : "skip");
+  const weeklyStats = useQuery(api.tracking.getWeeklyPrayerStats, isAuthenticated ? {} : "skip");
 
   // Dynamic styles
   const styles = getStyles(colors, shadows);
@@ -78,24 +85,42 @@ export default function PrayerScreen() {
     return iconMap[prayerName] || "time-outline";
   };
 
-  // Get Hijri date (simplified - in production use a proper library)
+  // Get Hijri date using Intl API (accurate with Umm al-Qura calendar)
   const getHijriDate = () => {
-    // This is a simplified approximation - use hijri-date library for accuracy
-    const today = new Date();
-    const hijriMonths = [
-      "Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani",
-      "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Shaban",
-      "Ramadan", "Shawwal", "Dhul Qadah", "Dhul Hijjah"
-    ];
-    // Approximate calculation (not accurate - use proper library in production)
-    const islamicEpoch = new Date(622, 6, 16);
-    const daysSinceEpoch = Math.floor((today.getTime() - islamicEpoch.getTime()) / (1000 * 60 * 60 * 24));
-    const lunarYear = Math.floor(daysSinceEpoch / 354.36667);
-    const dayOfYear = daysSinceEpoch % 354;
-    const month = Math.floor(dayOfYear / 29.5);
-    const day = Math.floor(dayOfYear % 29.5) + 1;
-    
-    return `${day} ${hijriMonths[month % 12]} ${1445 + Math.floor((lunarYear - 1403) / 1)}`; // Simplified
+    try {
+      const today = new Date();
+      const formatter = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+      return formatter.format(today).replace(" AH", " AH");
+    } catch {
+      // Fallback using known reference: Ramadan 1, 1447 AH = Feb 17, 2026
+      const today = new Date();
+      const hijriMonths = [
+        "Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani",
+        "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Shaban",
+        "Ramadan", "Shawwal", "Dhul Qadah", "Dhul Hijjah",
+      ];
+      const refDate = new Date(2026, 1, 17); // Ramadan 1, 1447
+      const diffDays = Math.floor((today.getTime() - refDate.getTime()) / 86400000);
+      const monthLens = [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29];
+      let day = 1 + diffDays;
+      let month = 8; // Ramadan = index 8
+      let year = 1447;
+      while (day > monthLens[month]) {
+        day -= monthLens[month];
+        month++;
+        if (month >= 12) { month = 0; year++; }
+      }
+      while (day <= 0) {
+        month--;
+        if (month < 0) { month = 11; year--; }
+        day += monthLens[month];
+      }
+      return `${day} ${hijriMonths[month]} ${year} AH`;
+    }
   };
 
   const renderPrayersTab = () => (
@@ -245,7 +270,7 @@ export default function PrayerScreen() {
           <View style={[styles.statIconContainer, { backgroundColor: colors.info + "20" }]}>
             <Ionicons name="flame" size={28} color={colors.info} />
           </View>
-          <Text style={styles.statValue}>7</Text>
+          <Text style={styles.statValue}>{streaks?.prayerStreak ?? 0}</Text>
           <Text style={styles.statLabel}>Day Streak</Text>
         </View>
       </View>
@@ -254,24 +279,31 @@ export default function PrayerScreen() {
       <View style={styles.weeklyCard}>
         <Text style={styles.weeklyTitle}>This Week</Text>
         <View style={styles.weeklyBars}>
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => {
-            const isToday = new Date().getDay() === (index + 1) % 7;
-            const progress = isToday ? completionRate : Math.floor(Math.random() * 40) + 60;
-            return (
-              <View key={day} style={styles.weeklyBarContainer}>
-                <View style={styles.weeklyBarBackground}>
-                  <View 
-                    style={[
-                      styles.weeklyBarFill, 
-                      { height: `${progress}%` },
-                      isToday && styles.weeklyBarToday,
-                    ]} 
-                  />
-                </View>
-                <Text style={[styles.weeklyDay, isToday && styles.weeklyDayToday]}>{day}</Text>
+          {(weeklyStats && weeklyStats.length > 0
+            ? weeklyStats.map((stat) => ({
+                day: stat.dayName,
+                progress: stat.percentage,
+                isToday: stat.date === new Date().toISOString().split("T")[0],
+              }))
+            : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => ({
+                day,
+                progress: new Date().getDay() === (index + 1) % 7 ? completionRate : 0,
+                isToday: new Date().getDay() === (index + 1) % 7,
+              }))
+          ).map(({ day, progress, isToday }) => (
+            <View key={day} style={styles.weeklyBarContainer}>
+              <View style={styles.weeklyBarBackground}>
+                <View 
+                  style={[
+                    styles.weeklyBarFill, 
+                    { height: `${progress}%` },
+                    isToday && styles.weeklyBarToday,
+                  ]} 
+                />
               </View>
-            );
-          })}
+              <Text style={[styles.weeklyDay, isToday && styles.weeklyDayToday]}>{day}</Text>
+            </View>
+          ))}
         </View>
       </View>
 

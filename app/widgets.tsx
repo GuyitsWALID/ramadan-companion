@@ -8,7 +8,8 @@ import { useState, useEffect, useCallback } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { colors, typography, spacing, borderRadius, shadows } from "../constants/theme";
+import { typography, spacing, borderRadius } from "../constants/theme";
+import { useTheme } from "../context/ThemeContext";
 import { 
   getWidgetSettings, 
   saveWidgetSettings, 
@@ -17,6 +18,9 @@ import {
 } from "../utils/widgetData";
 
 export default function WidgetsScreen() {
+  const { colors, shadows } = useTheme();
+  const styles = getStyles(colors, shadows);
+
   const [settings, setSettings] = useState<WidgetSettings>({
     showNextPrayer: true,
     showPrayerProgress: true,
@@ -311,7 +315,7 @@ export default function WidgetsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

@@ -60,7 +60,7 @@ export const createPrayerNotificationChannels = async () => {
     await Notifications.setNotificationChannelAsync("fajr-prayer", {
       name: "Fajr Prayer",
       importance: Notifications.AndroidImportance.HIGH,
-      sound: "adhan-fajr.wav",
+      sound: "default",
       enableVibrate: true,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FFD700",
@@ -71,17 +71,17 @@ export const createPrayerNotificationChannels = async () => {
     await Notifications.setNotificationChannelAsync("regular-prayers", {
       name: "Regular Prayers",
       importance: Notifications.AndroidImportance.DEFAULT,
-      sound: "adhan-regular.wav",
+      sound: "default",
       enableVibrate: true,
       vibrationPattern: [0, 250],
-      lightColor: "#1a472a",
+      lightColor: "#0D5C4D",
     });
 
     // Prayer reminders channel
     await Notifications.setNotificationChannelAsync("prayer-reminders", {
       name: "Prayer Reminders",
       importance: Notifications.AndroidImportance.LOW,
-      sound: "prayer-reminder.wav",
+      sound: "default",
       enableVibrate: true,
       vibrationPattern: [0, 100],
       lightColor: "#1976D2",
@@ -91,7 +91,7 @@ export const createPrayerNotificationChannels = async () => {
     await Notifications.setNotificationChannelAsync("ramadan-special", {
       name: "Ramadan Special",
       importance: Notifications.AndroidImportance.HIGH,
-      sound: "ramadan-reminder.wav",
+      sound: "default",
       enableVibrate: true,
       vibrationPattern: [0, 250, 100, 250],
       lightColor: "#f9a825",
@@ -119,7 +119,7 @@ export const schedulePrayerNotification = async (
       content: {
         title: `🕌 ${prayerName} Prayer Time`,
         body: `It's time for ${prayerName} prayer. May Allah accept your prayers.`,
-        sound: channelId === "fajr-prayer" ? "adhan-fajr.wav" : "adhan-regular.wav",
+        sound: "default",
         data: { prayerName, type: "prayer-time" },
         categoryId: "prayer-time-category",
       },
@@ -158,7 +158,7 @@ export const scheduleRamadanNotification = async (
         body: type === "sehri" 
           ? `Sehri time for Day ${dayNumber}. Have a blessed fast!`
           : `Iftar time for Day ${dayNumber}. Break your fast with dates!`,
-        sound: "ramadan-reminder.wav",
+        sound: "default",
         data: { type, dayNumber, notificationType: "ramadan-special" },
         categoryId: "ramadan-category",
       },
@@ -199,7 +199,7 @@ export const schedulePrayerReminder = async (
         content: {
           title: `⏰ ${prayerName} Prayer Reminder`,
           body: `${prayerName} prayer starts in ${reminderMinutes} minutes. Prepare for prayer.`,
-          sound: "prayer-reminder.wav",
+          sound: "default",
           data: { prayerName, type: "prayer-reminder" },
           categoryId: "prayer-reminder-category",
         },

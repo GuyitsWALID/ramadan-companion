@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as hello from "../hello.js";
+import type * as http from "../http.js";
+import type * as tracking from "../tracking.js";
 import type * as users from "../users.js";
 
 import type {
@@ -18,7 +21,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   hello: typeof hello;
+  http: typeof http;
+  tracking: typeof tracking;
   users: typeof users;
 }>;
 
