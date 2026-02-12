@@ -11,6 +11,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from "@expo-google-fonts/inter";
+import { AmiriQuran_400Regular } from "@expo-google-fonts/amiri-quran";
 import { UserProvider } from "../context/UserContext";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { NetworkProvider, useNetwork } from "../context/NetworkContext";
@@ -21,10 +22,8 @@ import { OfflineBanner } from "../components/OfflineBanner";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// 1. Initialize Convex (verbose for debugging auth)
-const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!, {
-  verbose: true,
-});
+// 1. Initialize Convex
+const convex = new ConvexReactClient(process.env.EXPO_PUBLIC_CONVEX_URL!);
 
 // 2. Keep Splash Screen visible
 SplashScreen.preventAutoHideAsync();
@@ -91,6 +90,7 @@ export default function RootLayout() {
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    AmiriQuran_400Regular,
   });
 
   // 4. Hide Splash Screen when ready

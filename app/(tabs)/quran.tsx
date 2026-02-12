@@ -10,6 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../context/ThemeContext";
 import { typography, spacing, borderRadius } from "../../constants/theme";
 import { Audio } from "expo-av";
+import QuranReader from "../../components/QuranReader";
 
 // Import Quran data and services
 import { 
@@ -1015,12 +1016,10 @@ export default function QuranScreen() {
         {activeTab === "streaks" && renderStreaksTab()}
       </ScrollView>
 
-      {/* Reading Mode Modal */}
-      <Modal
+      {/* Quran Reader Modal */}
+      <QuranReader
         visible={isReadingMode}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => {
+        onClose={() => {
           if (dailyObjective.lockedIn && !dailyObjective.completed) {
             Alert.alert("📖 Stay Focused", "Complete your goal to exit.");
           } else {
@@ -1028,213 +1027,11 @@ export default function QuranScreen() {
             setIsReadingMode(false);
           }
         }}
-      >
-        <SafeAreaView style={styles.readingModeContainer}>
-          <View style={styles.readingModeHeader}>
-            <TouchableOpacity 
-              onPress={() => {
-                if (dailyObjective.lockedIn && !dailyObjective.completed) {
-                  Alert.alert("📖 Stay Focused", "Complete your goal to exit.");
-                } else {
-                  stopAudio();
-                  setIsReadingMode(false);
-                }
-              }}
-            >
-              <Ionicons 
-                name={dailyObjective.lockedIn && !dailyObjective.completed ? "lock-closed" : "close"} 
-                size={28} 
-                color={dailyObjective.lockedIn && !dailyObjective.completed ? colors.secondary : colors.text} 
-              />
-            </TouchableOpacity>
-            <View style={styles.readingModeTitle}>
-              <Text style={styles.readingModeSurah}>
-                {currentSurahContent?.name || SURAHS[currentSurah - 1]?.name} • {currentSurahContent?.englishName || SURAHS[currentSurah - 1]?.englishName}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => setShowReciterModal(true)}>
-              <Ionicons name="headset" size={24} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Reading Mode Toggle */}
-          <View style={styles.readingModeToggle}>
-            <TouchableOpacity 
-              style={[
-                styles.readingModeToggleButton,
-                readingModePreference === "arabic" && styles.readingModeToggleButtonActive
-              ]}
-              onPress={() => changeReadingMode("arabic")}
-            >
-              <Text style={[
-                styles.readingModeToggleText,
-                readingModePreference === "arabic" && styles.readingModeToggleTextActive
-              ]}>Arabic Only</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[
-                styles.readingModeToggleButton,
-                readingModePreference === "translation" && styles.readingModeToggleButtonActive
-              ]}
-              onPress={() => changeReadingMode("translation")}
-            >
-              <Text style={[
-                styles.readingModeToggleText,
-                readingModePreference === "translation" && styles.readingModeToggleTextActive
-              ]}>With Translation</Text>
-            </TouchableOpacity>
-          </View>
-
-          {dailyObjective.lockedIn && !dailyObjective.completed && (
-            <View style={styles.lockInBanner}>
-              <Ionicons name="lock-closed" size={16} color="#FFF" />
-              <Text style={styles.lockInBannerText}>
-                Focus Mode: Read {dailyObjective.versesTarget - dailyObjective.versesRead} more verses
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.readingProgressBar}>
-            <View 
-              style={[
-                styles.readingProgressFill, 
-                { width: `${Math.min((dailyObjective.versesRead / dailyObjective.versesTarget) * 100, 100)}%` }
-              ]} 
-            />
-          </View>
-
-          {loadingSurah ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Loading surah...</Text>
-            </View>
-          ) : (
-            <ScrollView style={styles.versesContainer}>
-              {currentSurah !== 9 && currentSurah !== 1 && (
-                <Text style={styles.bismillah}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
-              )}
-
-              {(currentSurahContent?.verses || []).map((verse) => (
-                <TouchableOpacity
-                  key={verse.number}
-                  style={[
-                    styles.verseCard,
-                    verse.number <= dailyObjective.versesRead && styles.verseCardRead,
-                    currentPlayingVerse === verse.number && styles.verseCardPlaying
-                  ]}
-                  onPress={() => markVerseRead(verse.number)}
-                >
-                  <View style={styles.verseHeader}>
-                    <View style={styles.verseNumber}>
-                      <Text style={styles.verseNumberText}>{verse.number}</Text>
-                    </View>
-                    <View style={styles.verseActions}>
-                      <TouchableOpacity 
-                        style={styles.verseActionButton}
-                        onPress={() => {
-                          if (currentPlayingVerse === verse.number && isPlaying) {
-                            stopAudio();
-                          } else {
-                            playVerseAudio(verse.number);
-                          }
-                        }}
-                      >
-                        <Ionicons 
-                          name={currentPlayingVerse === verse.number && isPlaying ? "pause" : "play"} 
-                          size={18} 
-                          color={colors.primary} 
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  <View style={styles.verseContent}>
-                    <Text style={[
-                      styles.verseArabic,
-                      readingModePreference === "arabic" && styles.verseArabicLarge
-                    ]}>{verse.arabic}</Text>
-                    {readingModePreference === "translation" && verse.translation && (
-                      <Text style={styles.verseTranslation}>{verse.translation}</Text>
-                    )}
-                  </View>
-                  {verse.number <= dailyObjective.versesRead && (
-                    <View style={styles.verseReadCheck}>
-                      <Ionicons name="checkmark-circle" size={24} color={colors.success} />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-              
-              <View style={styles.surahNavigation}>
-                <TouchableOpacity 
-                  style={[styles.surahNavButton, currentSurah <= 1 && styles.surahNavButtonDisabled]}
-                  onPress={() => {
-                    if (currentSurah > 1) {
-                      const newSurah = currentSurah - 1;
-                      setCurrentSurah(newSurah);
-                      loadSurahContent(newSurah);
-                      loadAudioData(newSurah);
-                    }
-                  }}
-                  disabled={currentSurah <= 1}
-                >
-                  <Ionicons name="chevron-back" size={24} color={currentSurah > 1 ? colors.primary : colors.textMuted} />
-                  <Text style={[styles.surahNavText, currentSurah <= 1 && styles.surahNavTextDisabled]}>Previous</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.surahNavButton, currentSurah >= 114 && styles.surahNavButtonDisabled]}
-                  onPress={() => {
-                    if (currentSurah < 114) {
-                      const newSurah = currentSurah + 1;
-                      setCurrentSurah(newSurah);
-                      loadSurahContent(newSurah);
-                      loadAudioData(newSurah);
-                    }
-                  }}
-                  disabled={currentSurah >= 114}
-                >
-                  <Text style={[styles.surahNavText, currentSurah >= 114 && styles.surahNavTextDisabled]}>Next</Text>
-                  <Ionicons name="chevron-forward" size={24} color={currentSurah < 114 ? colors.primary : colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={{ height: 100 }} />
-            </ScrollView>
-          )}
-
-          {isPlaying && (
-            <View style={styles.audioPlayerBar}>
-              <View style={styles.audioPlayerInfo}>
-                <Ionicons name="musical-notes" size={20} color={colors.primary} />
-                <Text style={styles.audioPlayerText}>
-                  Verse {currentPlayingVerse} • {selectedReciter.englishName}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={togglePlayPause}>
-                <Ionicons name={isPlaying ? "pause-circle" : "play-circle"} size={36} color={colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={stopAudio}>
-                <Ionicons name="stop-circle" size={36} color={colors.error} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {dailyObjective.completed && (
-            <View style={styles.completionBanner}>
-              <Ionicons name="trophy" size={24} color="#FFF" />
-              <Text style={styles.completionText}>Masha'Allah! Goal completed! 🎉</Text>
-              <TouchableOpacity 
-                style={styles.exitButton}
-                onPress={() => {
-                  stopAudio();
-                  setIsReadingMode(false);
-                }}
-              >
-                <Text style={styles.exitButtonText}>Exit Reading</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </SafeAreaView>
-      </Modal>
+        initialSurah={currentSurah}
+        selectedReciter={selectedReciter}
+        onReciterPress={() => setShowReciterModal(true)}
+        onVerseRead={(verseNum) => markVerseRead(verseNum)}
+      />
 
       {/* Reading Mode Selection Modal */}
       <Modal
@@ -1585,46 +1382,6 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   motivationCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, alignItems: "center", marginBottom: spacing.lg, ...shadows.sm },
   motivationText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.medium, color: colors.text, textAlign: "center", marginTop: spacing.md, fontStyle: "italic" },
   motivationSource: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.regular, color: colors.textMuted, marginTop: spacing.sm },
-  readingModeContainer: { flex: 1, backgroundColor: colors.background },
-  readingModeHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.surface, ...shadows.sm },
-  readingModeTitle: { flex: 1, alignItems: "center" },
-  readingModeSurah: { fontSize: typography.sizes.lg, fontFamily: typography.fonts.bold, color: colors.text, textAlign: "center" },
-  readingModeToggle: { flexDirection: "row", marginHorizontal: spacing.lg, marginTop: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.xs, ...shadows.sm },
-  readingModeToggleButton: { flex: 1, paddingVertical: spacing.sm, alignItems: "center", borderRadius: borderRadius.md },
-  readingModeToggleButtonActive: { backgroundColor: colors.primary },
-  readingModeToggleText: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.medium, color: colors.textMuted },
-  readingModeToggleTextActive: { color: colors.textOnPrimary, fontFamily: typography.fonts.semiBold },
-  lockInBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.secondary, paddingVertical: spacing.sm, marginTop: spacing.md },
-  lockInBannerText: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.medium, color: "#FFF" },
-  readingProgressBar: { height: 4, backgroundColor: colors.border, marginTop: spacing.md },
-  readingProgressFill: { height: "100%", backgroundColor: colors.primary },
-  versesContainer: { flex: 1, padding: spacing.lg },
-  bismillah: { fontSize: typography.sizes.xxl, fontFamily: typography.fonts.bold, color: colors.primary, textAlign: "center", marginBottom: spacing.xl, paddingVertical: spacing.lg },
-  verseCard: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, marginBottom: spacing.md, ...shadows.sm },
-  verseCardRead: { borderLeftWidth: 4, borderLeftColor: colors.success },
-  verseCardPlaying: { borderColor: colors.primary, borderWidth: 2 },
-  verseHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
-  verseNumber: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + "20", justifyContent: "center", alignItems: "center" },
-  verseNumberText: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.bold, color: colors.primary },
-  verseActions: { flexDirection: "row", gap: spacing.sm },
-  verseActionButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary + "20", justifyContent: "center", alignItems: "center" },
-  verseContent: { flex: 1 },
-  verseArabic: { fontSize: typography.sizes.xl, fontFamily: typography.fonts.medium, color: colors.text, textAlign: "right", lineHeight: 44, marginBottom: spacing.md },
-  verseArabicLarge: { fontSize: 28, lineHeight: 56 },
-  verseTranslation: { fontSize: typography.sizes.md, fontFamily: typography.fonts.regular, color: colors.textSecondary, lineHeight: 24 },
-  verseReadCheck: { position: "absolute", top: spacing.md, right: spacing.md },
-  surahNavigation: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.lg, marginTop: spacing.md },
-  surahNavButton: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, backgroundColor: colors.surface, borderRadius: borderRadius.lg, ...shadows.sm },
-  surahNavButtonDisabled: { opacity: 0.5 },
-  surahNavText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.medium, color: colors.primary },
-  surahNavTextDisabled: { color: colors.textMuted },
-  audioPlayerBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surface, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, ...shadows.lg },
-  audioPlayerInfo: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flex: 1 },
-  audioPlayerText: { fontSize: typography.sizes.sm, fontFamily: typography.fonts.medium, color: colors.text },
-  completionBanner: { backgroundColor: colors.success, padding: spacing.lg, alignItems: "center" },
-  completionText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.semiBold, color: "#FFF", marginTop: spacing.sm, textAlign: "center" },
-  exitButton: { backgroundColor: "#FFF", paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, borderRadius: borderRadius.lg, marginTop: spacing.md },
-  exitButtonText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.semiBold, color: colors.success },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
   modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.xl, padding: spacing.xl, width: "100%", maxWidth: 400, ...shadows.lg },
   modalTitle: { fontSize: typography.sizes.xl, fontFamily: typography.fonts.bold, color: colors.text, marginBottom: spacing.lg, textAlign: "center" },
