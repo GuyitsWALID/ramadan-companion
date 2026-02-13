@@ -1,7 +1,8 @@
-import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+// Types only: avoid importing expo-notifications at runtime in Expo Go
+import type { SchedulableTriggerInputTypes, CalendarTriggerInput, DateTriggerInput, TimeIntervalTriggerInput } from "expo-notifications";
 
 // Check if running in Expo Go
 export const isExpoGo = Constants.appOwnership === "expo";
@@ -9,27 +10,47 @@ export const isExpoGo = Constants.appOwnership === "expo";
 // Log warning for Expo Go users (only once at startup)
 if (isExpoGo && Platform.OS === "android") {
   console.log(
-    "[Notifications] Running in Expo Go - push notifications are limited. " +
-    "Use a development build for full notification support."
+    "[Notifications] Running in Expo Go - remote push notifications are not supported in Expo Go. " +
+    "Use a development build for full notification support: https://docs.expo.dev/develop/development-builds/introduction/"
   );
 }
 
-// Configure notification handler
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Lazy-load `expo-notifications` so importing this module in Expo Go (Android)
+// does not trigger runtime errors/warnings coming from expo-notifications' top-level code.
+const loadNotificationsModule = async () => {
+  if (isExpoGo && Platform.OS === "android") return null;
+  return (await import("expo-notifications")) as typeof import("expo-notifications");
+};
+
+// Initialize handler only when the notifications module is available
+export const initNotificationsIfAvailable = async () => {
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return;
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+};
 
 // Request permissions with Android 13+ support
 export const requestNotificationPermissions = async () => {
+  // Ensure handler is initialized when available
+  await initNotificationsIfAvailable();
+
   // Skip push notification setup in Expo Go on Android
   if (isExpoGo && Platform.OS === "android") {
     console.log("Skipping push notification permissions in Expo Go");
     return false;
   }
+
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return false;
 
   if (Platform.OS === "android") {
     const { status } = await Notifications.requestPermissionsAsync({
@@ -54,6 +75,9 @@ export const createPrayerNotificationChannels = async () => {
     console.log("Skipping notification channels in Expo Go");
     return;
   }
+
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return;
 
   if (Platform.OS === "android") {
     // Fajr channel (special importance)
@@ -112,6 +136,9 @@ export const schedulePrayerNotification = async (
     return;
   }
 
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return;
+
   try {
     const [hours, minutes] = time.split(":").map(Number);
     
@@ -121,13 +148,13 @@ export const schedulePrayerNotification = async (
         body: `It's time for ${prayerName} prayer. May Allah accept your prayers.`,
         sound: "default",
         data: { prayerName, type: "prayer-time" },
-        categoryId: "prayer-time-category",
       },
-      trigger: {
+      trigger: ({
+        type: "calendar",
         hour: hours,
         minute: minutes,
         repeats: true,
-      },
+      } as unknown) as CalendarTriggerInput,
       identifier: `${prayerName.toLowerCase()}-daily`,
     });
     
@@ -149,6 +176,9 @@ export const scheduleRamadanNotification = async (
     return;
   }
 
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return;
+
   try {
     const [hours, minutes] = time.split(":").map(Number);
     
@@ -160,13 +190,13 @@ export const scheduleRamadanNotification = async (
           : `Iftar time for Day ${dayNumber}. Break your fast with dates!`,
         sound: "default",
         data: { type, dayNumber, notificationType: "ramadan-special" },
-        categoryId: "ramadan-category",
       },
-      trigger: {
+      trigger: ({
+        type: "calendar",
         hour: hours,
         minute: minutes,
         repeats: false, // These will be rescheduled daily
-      },
+      } as unknown) as CalendarTriggerInput,
       identifier: `ramadan-${type}-day-${dayNumber}`,
     });
     
@@ -188,6 +218,9 @@ export const schedulePrayerReminder = async (
     return;
   }
 
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return;
+
   try {
     const [hours, minutes] = prayerTime.split(":").map(Number);
     const reminderTime = new Date();
@@ -201,9 +234,8 @@ export const schedulePrayerReminder = async (
           body: `${prayerName} prayer starts in ${reminderMinutes} minutes. Prepare for prayer.`,
           sound: "default",
           data: { prayerName, type: "prayer-reminder" },
-          categoryId: "prayer-reminder-category",
         },
-        trigger: { date: reminderTime },
+        trigger: ({ type: "date", date: reminderTime } as unknown) as DateTriggerInput,
         identifier: `${prayerName.toLowerCase()}-reminder`,
       });
       
@@ -214,8 +246,73 @@ export const schedulePrayerReminder = async (
   }
 };
 
+// Schedule Quran reading reminder (wrapper so caller doesn't import expo-notifications directly)
+export const scheduleQuranReminder = async (time: string, soundEnabled = true) => {
+  if (isExpoGo && Platform.OS === "android") {
+    console.log("Skipping Quran reminder in Expo Go");
+    return;
+  }
+
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) return;
+
+  try {
+    const [hours, minutes] = time.split(":").map(Number);
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "📖 Quran Reading Reminder",
+        body: "Time for your daily Quran reading. May Allah benefit you through His words.",
+        sound: soundEnabled ? "prayer-reminder.wav" : undefined,
+        data: { type: "quran-reminder" },
+      },
+      trigger: ({
+        type: "calendar",
+        hour: hours,
+        minute: minutes,
+        repeats: true,
+      } as unknown) as CalendarTriggerInput,
+      identifier: "quran-reading-daily",
+    });
+
+    console.log(`Quran reading reminder scheduled for ${time}`);
+  } catch (error) {
+    console.error("Error scheduling Quran reminder:", error);
+  }
+};
+
+// Test notification helper (safe to call from UI)
+export const testNotification = async (soundEnabled = true) => {
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) {
+    console.log("Skipping test notification in Expo Go");
+    return;
+  }
+
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "🕌 Test Notification",
+        body: "This is a test notification from Ramadan Companion!",
+        sound: soundEnabled ? "adhan-regular.wav" : undefined,
+      },
+      trigger: ({ type: "timeInterval", seconds: 5, repeats: false } as unknown) as TimeIntervalTriggerInput,
+      identifier: "test-notification",
+    });
+    console.log("Test notification scheduled");
+  } catch (error) {
+    console.error("Error scheduling test notification:", error);
+  }
+};
+
 // Cancel all scheduled notifications
 export const cancelAllNotifications = async () => {
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) {
+    console.log("Skipping cancelAllNotifications in Expo Go");
+    return;
+  }
+
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
     console.log("All scheduled notifications cancelled");
@@ -226,6 +323,12 @@ export const cancelAllNotifications = async () => {
 
 // Get all scheduled notifications
 export const getScheduledNotifications = async () => {
+  const Notifications = await loadNotificationsModule();
+  if (!Notifications) {
+    console.log("No scheduled notifications available in Expo Go");
+    return [];
+  }
+
   try {
     const notifications = await Notifications.getAllScheduledNotificationsAsync();
     return notifications;

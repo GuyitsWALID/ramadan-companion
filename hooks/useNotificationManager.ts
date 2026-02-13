@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import * as Notifications from "expo-notifications";
 import {
   requestNotificationPermissions,
   createPrayerNotificationChannels,
@@ -10,6 +9,8 @@ import {
   getScheduledNotifications,
   saveNotificationSettings,
   loadNotificationSettings,
+  scheduleQuranReminder as scheduleQuranReminderNative,
+  testNotification as testNotificationNative,
 } from "../utils/notifications";
 import {
   calculateTodayPrayerTimes,
@@ -129,25 +130,7 @@ export const useNotificationManager = () => {
         return;
       }
 
-      const [hours, minutes] = time.split(":").map(Number);
-      
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "📖 Quran Reading Reminder",
-          body: "Time for your daily Quran reading. May Allah benefit you through His words.",
-          sound: notificationSettings.soundEnabled ? "prayer-reminder.wav" : undefined,
-          data: { type: "quran-reminder" },
-          categoryId: "quran-reminder-category",
-        },
-        trigger: {
-          hour: hours,
-          minute: minutes,
-          repeats: true,
-        },
-        identifier: "quran-reading-daily",
-      });
-
-      console.log(`Quran reading reminder scheduled for ${time}`);
+      await scheduleQuranReminderNative(time, notificationSettings.soundEnabled);
     } catch (error) {
       console.error("Error scheduling Quran reminder:", error);
     }
@@ -170,19 +153,11 @@ export const useNotificationManager = () => {
     }
   };
 
-  // Test notification
+  // Test notification (uses safe native wrapper)
   const testNotification = async () => {
     try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🕌 Test Notification",
-          body: "This is a test notification from Ramadan Companion!",
-          sound: notificationSettings?.soundEnabled ? "adhan-regular.wav" : undefined,
-        },
-        trigger: { seconds: 5 },
-        identifier: "test-notification",
-      });
-      console.log("Test notification scheduled");
+      await testNotificationNative(notificationSettings?.soundEnabled ?? true);
+      console.log("Test notification scheduled (wrapper)");
     } catch (error) {
       console.error("Error scheduling test notification:", error);
     }
