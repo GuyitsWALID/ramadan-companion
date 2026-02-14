@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, Alert, BackHandler, FlatList } from "react-native";
-import { useState, useEffect, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, Alert, BackHandler, FlatList, AppState, AppStateStatus, Platform } from "react-native";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation } from "convex/react";
@@ -127,6 +127,14 @@ export default function QuranScreen() {
   // Daily objective states
   const [showSetObjectiveModal, setShowSetObjectiveModal] = useState(false);
   const [showLockInConfirm, setShowLockInConfirm] = useState(false);
+  // Surah open choice modal state
+  const [showSurahOpenModal, setShowSurahOpenModal] = useState(false);
+  const [pendingSurahToOpen, setPendingSurahToOpen] = useState<number | null>(null);
+  // Focus-mode target picker
+  const [showFocusTargetModal, setShowFocusTargetModal] = useState(false);
+  const [focusTarget, setFocusTarget] = useState<number>(20);
+  const attemptedBackgroundRef = useRef(false);
+
   const [dailyObjective, setDailyObjective] = useState<DailyObjective>({
     versesTarget: 20,
     versesRead: 0,
@@ -156,7 +164,7 @@ export default function QuranScreen() {
   const updateReadingPlanMutation = useMutation(api.users.updateQuranReadingPlan);
   const saveQuranProgressMutation = useMutation(api.users.saveQuranProgress);
 
-  // Handle back button when in lock-in mode
+  // Handle back button when in lock-in mode + prevent background-exit reminders
   useEffect(() => {
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
       if (dailyObjective.lockedIn && !dailyObjective.completed) {
@@ -177,6 +185,45 @@ export default function QuranScreen() {
 
     return () => backHandler.remove();
   }, [dailyObjective, isReadingMode]);
+
+  // Warn if user backgrounds or attempts to unload the app while locked-in (best-effort)
+  useEffect(() => {
+    const handleAppState = (nextState: AppStateStatus) => {
+      if ((nextState === 'inactive' || nextState === 'background') && dailyObjective.lockedIn && !dailyObjective.completed) {
+        // best-effort: show alert (may not appear on some platforms during backgrounding)
+        try {
+          Alert.alert("📖 Focus Mode active", "You're in Focus Mode — finish your target before exiting the app.");
+        } catch (e) {}
+        attemptedBackgroundRef.current = true;
+      }
+
+      if (nextState === 'active' && attemptedBackgroundRef.current && dailyObjective.lockedIn && !dailyObjective.completed) {
+        Alert.alert("📖 Reminder", `You are still in Focus Mode — ${dailyObjective.versesRead}/${dailyObjective.versesTarget} verses completed.`);
+        attemptedBackgroundRef.current = false;
+      }
+    };
+
+    const sub = AppState.addEventListener ? AppState.addEventListener('change', handleAppState) : undefined;
+
+    // web: prevent unload
+    let beforeUnload = undefined as any;
+    if (Platform.OS === 'web') {
+      beforeUnload = (e: BeforeUnloadEvent) => {
+        if (dailyObjective.lockedIn && !dailyObjective.completed) {
+          e.preventDefault();
+          e.returnValue = 'You are in Focus Mode — complete your target before leaving.';
+          return e.returnValue;
+        }
+        return undefined;
+      };
+      window.addEventListener('beforeunload', beforeUnload);
+    }
+
+    return () => {
+      if (sub && sub.remove) sub.remove();
+      if (Platform.OS === 'web' && beforeUnload) window.removeEventListener('beforeunload', beforeUnload);
+    };
+  }, [dailyObjective]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -553,9 +600,10 @@ export default function QuranScreen() {
     }
   };
 
-  const startReading = (withLockIn: boolean, surahNumber?: number) => {
+  const startReading = (withLockIn: boolean, surahNumber?: number, targetVerses?: number) => {
+    const target = typeof targetVerses === "number" ? targetVerses : dailyObjective.versesTarget;
     const newObjective: DailyObjective = {
-      versesTarget: dailyObjective.versesTarget,
+      versesTarget: target,
       versesRead: 0,
       startTime: new Date().toISOString(),
       completed: false,
@@ -631,11 +679,11 @@ export default function QuranScreen() {
     setSaving(false);
   }, [juzProgress, userId, readingPlan, updateReadingPlanMutation, saveQuranProgressMutation]);
 
-  // Render surah list item
+  // Render surah list item (shows choice modal before opening)
   const renderSurahItem = ({ item }: { item: SurahInfo }) => (
     <TouchableOpacity
       style={styles.surahItem}
-      onPress={() => openSurah(item.number)}
+      onPress={() => { setPendingSurahToOpen(item.number); setShowSurahOpenModal(true); }}
     >
       <View style={styles.surahItemNumber}>
         <Text style={styles.surahItemNumberText}>{item.number}</Text>
@@ -1031,6 +1079,7 @@ export default function QuranScreen() {
         selectedReciter={selectedReciter}
         onReciterPress={() => setShowReciterModal(true)}
         onVerseRead={(verseNum) => markVerseRead(verseNum)}
+        focusInfo={{ lockedIn: dailyObjective.lockedIn, versesRead: dailyObjective.versesRead, versesTarget: dailyObjective.versesTarget }}
       />
 
       {/* Reading Mode Selection Modal */}
@@ -1242,6 +1291,55 @@ export default function QuranScreen() {
         </View>
       </Modal>
 
+      {/* Surah open choice modal */}
+      <Modal
+        visible={showSurahOpenModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => { setShowSurahOpenModal(false); setPendingSurahToOpen(null); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.lockInConfirmModal}>
+            <Text style={styles.lockInConfirmTitle}>Open Surah</Text>
+            <Text style={styles.lockInConfirmText}>
+              Would you like to open Surah {pendingSurahToOpen} in Focus Mode or just read?
+            </Text>
+            <View style={styles.lockInConfirmButtons}>
+              <TouchableOpacity
+                style={styles.lockInConfirmCancel}
+                onPress={() => { setShowSurahOpenModal(false); setPendingSurahToOpen(null); }}
+              >
+                <Text style={styles.lockInConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.lockInConfirmStart}
+                onPress={() => {
+                  // show focus target selection first
+                  setShowSurahOpenModal(false);
+                  setFocusTarget(dailyObjective.versesTarget || 20);
+                  setShowFocusTargetModal(true);
+                }}
+              >
+                <Ionicons name="lock-closed" size={18} color="#FFF" />
+                <Text style={styles.lockInConfirmStartText}>Focus Mode</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.lockInConfirmStart, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setShowSurahOpenModal(false);
+                  startReading(false, pendingSurahToOpen || undefined);
+                  setPendingSurahToOpen(null);
+                }}
+              >
+                <Text style={styles.lockInConfirmStartText}>Just Read</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Lock-in Confirmation Modal */}
       <Modal
         visible={showLockInConfirm}
@@ -1266,8 +1364,10 @@ export default function QuranScreen() {
               <TouchableOpacity 
                 style={styles.lockInConfirmStart}
                 onPress={() => {
+                  // open focus target picker (allow user to choose verses target before locking in)
                   setShowLockInConfirm(false);
-                  startReading(true, currentSurah);
+                  setFocusTarget(dailyObjective.versesTarget || 20);
+                  setShowFocusTargetModal(true);
                 }}
               >
                 <Ionicons name="lock-closed" size={18} color="#FFF" />

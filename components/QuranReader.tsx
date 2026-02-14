@@ -45,6 +45,7 @@ interface QuranReaderProps {
   selectedReciter: Reciter;
   onReciterPress: () => void;
   onVerseRead?: (verseNumber: number) => void;
+  focusInfo?: { lockedIn: boolean; versesRead: number; versesTarget: number };
 }
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -163,6 +164,7 @@ export default function QuranReader({
   selectedReciter,
   onReciterPress,
   onVerseRead,
+  focusInfo,
 }: QuranReaderProps) {
   const { colors, shadows } = useTheme();
   const styles = getStyles(colors, shadows);
@@ -773,6 +775,18 @@ export default function QuranReader({
         </View>
 
         {/* ── Mode toggles ──────────────────────────────────── */}
+        {focusInfo?.lockedIn && !focusInfo?.versesTarget && (
+          <View style={[styles.focusBanner, { backgroundColor: colors.primary + '10' }]}>
+            <Text style={styles.focusBannerText}>Focus Mode active</Text>
+            <Text style={styles.focusBannerSubtext}>Complete your target before exiting the app.</Text>
+          </View>
+        )}
+        {focusInfo?.lockedIn && focusInfo?.versesTarget > 0 && (
+          <View style={[styles.focusBanner, { backgroundColor: colors.primary + '10' }]}>
+            <Text style={styles.focusBannerText}>Focus Mode — {focusInfo.versesRead}/{focusInfo.versesTarget} verses</Text>
+            <Text style={styles.focusBannerSubtext}>You can't exit the reader until you finish your target.</Text>
+          </View>
+        )}
         <View style={styles.controlBar}>
           {/* View mode toggle */}
           <View style={styles.modeToggle}>
@@ -1021,6 +1035,11 @@ const getStyles = (colors: any, shadows: any) =>
     },
     controlChipTextActive: { color: colors.textOnPrimary },
     controlIconBtn: { padding: spacing.xs },
+
+    // Focus banner when locked-in
+    focusBanner: { width: '100%', padding: spacing.sm, borderRadius: borderRadius.md, marginBottom: spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary + '20' },
+    focusBannerText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.semiBold, color: colors.primary },
+    focusBannerSubtext: { fontSize: typography.sizes.xs, color: colors.textSecondary, marginTop: spacing.xs },
 
     // Loading
     loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },

@@ -79,7 +79,7 @@ export default function PrayerScreen() {
       "Sunrise": "sunny",
       "Dhuhr": "time-outline",
       "Asr": "partly-sunny-outline",
-      "Maghrib": "sunset-outline",
+      "Maghrib": "sunny-outline",
       "Isha": "moon-outline",
     };
     return iconMap[prayerName] || "time-outline";

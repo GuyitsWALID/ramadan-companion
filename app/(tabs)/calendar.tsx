@@ -370,7 +370,7 @@ export default function CalendarScreen() {
             style={styles.timingCard}
             onPress={() => setShowDua(showDua === "iftar" ? null : "iftar")}
           >
-            <Ionicons name="sunset-outline" size={24} color={colors.textOnPrimary} />
+            <Ionicons name="sunny-outline" size={24} color={colors.textOnPrimary} />
             <Text style={styles.timingTitle}>Iftar</Text>
             <Text style={styles.timingTime}>{selectedDay?.iftarTime}</Text>
             <Text style={styles.timingHint}>Tap for dua</Text>
@@ -523,7 +523,7 @@ export default function CalendarScreen() {
               </View>
             </View>
             <View style={styles.selectedDayTiming}>
-              <Ionicons name="sunset-outline" size={20} color={colors.secondary} />
+              <Ionicons name="sunny-outline" size={20} color={colors.secondary} />
               <View>
                 <Text style={styles.selectedDayTimingLabel}>Iftar</Text>
                 <Text style={styles.selectedDayTimingTime}>{selectedDay.iftarTime}</Text>

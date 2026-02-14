@@ -1,8 +1,7 @@
-import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Modal, Dimensions, Linking, Alert } from "react-native";
+import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Image, TextInput, Modal, Dimensions, Linking, Alert, ActivityIndicator, Platform } from "react-native";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { XMLParser } from "fast-xml-parser";
 import { API_CONFIG } from "../../constants/api";
@@ -84,386 +83,14 @@ interface Dua {
   translation: string;
   occasion: string;
   benefits: string[];
+  reference?: string;
 }
 
-const STORAGE_KEY_SAVED = "@ramadan_saved_content";
 
-// Daily YouTube Video Recommendations
-const dailyYouTubeVideos: YouTubeVideo[] = [
-  {
-    id: "yt1",
-    title: "The Power of Tahajjud Prayer",
-    channelName: "Islamic Guidance",
-    duration: "12:45",
-    thumbnailUrl: "https://picsum.photos/seed/tahajjud/320/180",
-    videoUrl: "https://www.youtube.com/watch?v=tahajjud",
-    views: "1.2M",
-    publishedAt: "2025-01-15",
-    category: "lecture",
-  },
-  {
-    id: "yt2",
-    title: "Beautiful Quran Recitation - Surah Ar-Rahman",
-    channelName: "Quran Academy",
-    duration: "18:30",
-    thumbnailUrl: "https://picsum.photos/seed/rahman/320/180",
-    videoUrl: "https://www.youtube.com/watch?v=arrahman",
-    views: "5.6M",
-    publishedAt: "2025-01-14",
-    category: "recitation",
-  },
-  {
-    id: "yt3",
-    title: "How to Make the Most of Ramadan",
-    channelName: "Yaqeen Institute",
-    duration: "25:00",
-    thumbnailUrl: "https://picsum.photos/seed/ramadan2/320/180",
-    videoUrl: "https://www.youtube.com/watch?v=ramadan",
-    views: "890K",
-    publishedAt: "2025-01-13",
-    category: "lecture",
-  },
-  {
-    id: "yt4",
-    title: "Stories of the Prophets - Ibrahim (AS)",
-    channelName: "FreeQuranEducation",
-    duration: "45:20",
-    thumbnailUrl: "https://picsum.photos/seed/ibrahim/320/180",
-    videoUrl: "https://www.youtube.com/watch?v=ibrahim",
-    views: "2.3M",
-    publishedAt: "2025-01-12",
-    category: "documentary",
-  },
-  {
-    id: "yt5",
-    title: "Nasheed - The Light of Muhammad ﷺ",
-    channelName: "Native Deen",
-    duration: "4:30",
-    thumbnailUrl: "https://picsum.photos/seed/nasheed/320/180",
-    videoUrl: "https://www.youtube.com/watch?v=nasheed",
-    views: "3.1M",
-    publishedAt: "2025-01-11",
-    category: "nasheed",
-  },
-];
 
-// Daily Quran Verses
-const dailyQuranVerses: QuranVerse[] = [
-  {
-    id: "v1",
-    surahNumber: 2,
-    surahName: "Al-Baqarah",
-    surahNameArabic: "البقرة",
-    ayahNumber: 185,
-    arabic: "شَهْرُ رَمَضَانَ الَّذِي أُنزِلَ فِيهِ الْقُرْآنُ هُدًى لِّلنَّاسِ وَبَيِّنَاتٍ مِّنَ الْهُدَىٰ وَالْفُرْقَانِ",
-    translation: "The month of Ramadan in which was revealed the Quran, a guidance for mankind and clear proofs for the guidance and the criterion.",
-    transliteration: "Shahru Ramadaana alladhee unzila feehi alquraanu hudan lilnnaasi wabayyinaatin mina alhuda waalfurqaani",
-    tafsir: "This verse establishes the significance of Ramadan as the month when the Quran was first revealed to Prophet Muhammad ﷺ.",
-  },
-  {
-    id: "v2",
-    surahNumber: 96,
-    surahName: "Al-Alaq",
-    surahNameArabic: "العلق",
-    ayahNumber: 1,
-    arabic: "اقْرَأْ بِاسْمِ رَبِّكَ الَّذِي خَلَقَ",
-    translation: "Read! In the Name of your Lord Who has created.",
-    transliteration: "Iqra bismi rabbika allathee khalaqa",
-    tafsir: "The first revelation to Prophet Muhammad ﷺ, emphasizing the importance of reading and seeking knowledge.",
-  },
-  {
-    id: "v3",
-    surahNumber: 93,
-    surahName: "Ad-Duha",
-    surahNameArabic: "الضحى",
-    ayahNumber: 5,
-    arabic: "وَلَسَوْفَ يُعْطِيكَ رَبُّكَ فَتَرْضَىٰ",
-    translation: "And verily, your Lord will give you so that you shall be well-pleased.",
-    transliteration: "Walasawfa yutika rabbuka fatarda",
-    tafsir: "A promise from Allah of future blessings and satisfaction for those who remain patient.",
-  },
-  {
-    id: "v4",
-    surahNumber: 94,
-    surahName: "Ash-Sharh",
-    surahNameArabic: "الشرح",
-    ayahNumber: 6,
-    arabic: "إِنَّ مَعَ الْعُسْرِ يُسْرًا",
-    translation: "Verily, with hardship comes ease.",
-    transliteration: "Inna ma'a al-'usri yusra",
-    tafsir: "A beautiful reminder that every difficulty is accompanied by relief and ease.",
-  },
-  {
-    id: "v5",
-    surahNumber: 55,
-    surahName: "Ar-Rahman",
-    surahNameArabic: "الرحمن",
-    ayahNumber: 13,
-    arabic: "فَبِأَيِّ آلَاءِ رَبِّكُمَا تُكَذِّبَانِ",
-    translation: "Then which of the favors of your Lord will you deny?",
-    transliteration: "Fabi-ayyi ala-i rabbikuma tukaththibani",
-    tafsir: "This verse is repeated 31 times in Surah Ar-Rahman, asking mankind and jinn to reflect on Allah's blessings.",
-  },
-  {
-    id: "v6",
-    surahNumber: 3,
-    surahName: "Aal-Imran",
-    surahNameArabic: "آل عمران",
-    ayahNumber: 139,
-    arabic: "وَلَا تَهِنُوا وَلَا تَحْزَنُوا وَأَنتُمُ الْأَعْلَوْنَ إِن كُنتُم مُّؤْمِنِينَ",
-    translation: "Do not lose heart nor fall into despair, for you will be superior if you are true believers.",
-    transliteration: "Wala tahinoo wala tahzanoo waantumu al-aʿlawna in kuntum mu'mineena",
-    tafsir: "Encouragement to believers to stay strong in faith during difficult times.",
-  },
-  {
-    id: "v7",
-    surahNumber: 29,
-    surahName: "Al-Ankabut",
-    surahNameArabic: "العنكبوت",
-    ayahNumber: 69,
-    arabic: "وَالَّذِينَ جَاهَدُوا فِينَا لَنَهْدِيَنَّهُمْ سُبُلَنَا",
-    translation: "And those who strive for Us - We will surely guide them to Our ways.",
-    transliteration: "Waallatheena jahadoo feena lanahdiyannahum subulana",
-    tafsir: "Promise of divine guidance for those who sincerely strive in the path of Allah.",
-  },
-];
+const categories = ["All", "Faith", "Prayer", "Ramadan", "Quran"];
 
-// Blog Posts
-const blogPosts: BlogPost[] = [
-  {
-    id: "b1",
-    title: "10 Ways to Maximize Your Ramadan Experience",
-    excerpt: "Practical tips for making this Ramadan your most spiritually fulfilling one yet...",
-    content: "Ramadan is a blessed month that offers countless opportunities for spiritual growth. Here are 10 practical ways to maximize your experience: 1. Set clear intentions before Ramadan begins. 2. Create a personalized worship schedule. 3. Increase your Quran recitation gradually. 4. Focus on quality over quantity in your prayers...",
-    author: "Sheikh Ahmad Kutty",
-    coverImage: "https://picsum.photos/seed/blog1/400/250",
-    publishedAt: "2025-01-18",
-    readTime: "8 min read",
-    tags: ["Ramadan", "Productivity", "Worship"],
-    category: "Spirituality",
-  },
-  {
-    id: "b2",
-    title: "Understanding Zakat: A Complete Guide",
-    excerpt: "Everything you need to know about calculating and distributing your Zakat...",
-    content: "Zakat is one of the five pillars of Islam and a mandatory form of charity. This comprehensive guide covers: Who must pay Zakat, How to calculate Nisab, The eight categories of Zakat recipients...",
-    author: "Dr. Monzer Kahf",
-    coverImage: "https://picsum.photos/seed/blog2/400/250",
-    publishedAt: "2025-01-17",
-    readTime: "12 min read",
-    tags: ["Zakat", "Charity", "Islamic Finance"],
-    category: "Charity",
-  },
-  {
-    id: "b3",
-    title: "The Sunnah of Prophet Muhammad ﷺ in Ramadan",
-    excerpt: "Learn about the daily practices of the Prophet during the blessed month...",
-    content: "Prophet Muhammad ﷺ had special practices during Ramadan that we can emulate. He would increase his worship, give more charity, and spend more time in reflection...",
-    author: "Sheikh Yasir Qadhi",
-    coverImage: "https://picsum.photos/seed/blog3/400/250",
-    publishedAt: "2025-01-16",
-    readTime: "10 min read",
-    tags: ["Sunnah", "Prophet", "Ramadan"],
-    category: "Seerah",
-  },
-  {
-    id: "b4",
-    title: "Maintaining Mental Health During Fasting",
-    excerpt: "How to balance spiritual goals with mental wellness during Ramadan...",
-    content: "While Ramadan is a time of spiritual rejuvenation, it's important to also care for our mental health. This article provides guidance on managing stress, anxiety, and maintaining emotional balance...",
-    author: "Dr. Rania Awaad",
-    coverImage: "https://picsum.photos/seed/blog4/400/250",
-    publishedAt: "2025-01-15",
-    readTime: "7 min read",
-    tags: ["Mental Health", "Self-Care", "Ramadan"],
-    category: "Health",
-  },
-  {
-    id: "b5",
-    title: "Teaching Children About Ramadan",
-    excerpt: "Fun and engaging ways to introduce your kids to the spirit of Ramadan...",
-    content: "Introducing children to Ramadan can be a beautiful experience. Here are creative ideas to help your little ones understand and participate in this blessed month...",
-    author: "Ustadha Yasmin Mogahed",
-    coverImage: "https://picsum.photos/seed/blog5/400/250",
-    publishedAt: "2025-01-14",
-    readTime: "6 min read",
-    tags: ["Parenting", "Children", "Education"],
-    category: "Ramadan Special",
-  },
-];
-
-// Expanded content data
-const mockContent: ContentItem[] = [
-  {
-    id: "1",
-    title: "The Spiritual Benefits of Fasting in Ramadan",
-    type: "article",
-    excerpt: "Discover the deep spiritual significance behind fasting and how it purifies the soul...",
-    author: "Sheikh Ahmed Yasin",
-    readTime: "5 min read",
-    category: "Spirituality",
-    tags: ["Ramadan", "Fasting", "Spirituality"],
-    publishedAt: "2025-01-15",
-    featured: true,
-    content: "Fasting in Ramadan is not merely abstaining from food and drink. It is a comprehensive act of worship that purifies the soul, strengthens the will, and brings us closer to Allah...",
-  },
-  {
-    id: "2",
-    title: "Making the Most of Laylat al-Qadr",
-    type: "video",
-    excerpt: "A comprehensive guide to understanding and maximizing the Night of Power...",
-    author: "Dr. Fatima Al-Rashid",
-    duration: "45 min",
-    imageUrl: "https://picsum.photos/seed/ramadan1/300/200.jpg",
-    category: "Ramadan Special",
-    tags: ["Laylat al-Qadr", "Prayer", "Ramadan"],
-    publishedAt: "2025-01-12",
-    featured: true,
-  },
-  {
-    id: "3",
-    title: "Daily Quran Reflections for Ramadan",
-    type: "podcast",
-    excerpt: "Join us for daily reflections on Quranic verses relevant to Ramadan themes...",
-    author: "Imam Khalid Hassan",
-    duration: "20 min",
-    category: "Quran",
-    tags: ["Quran", "Reflection", "Daily"],
-    publishedAt: "2025-01-10",
-    featured: true,
-  },
-  {
-    id: "4",
-    title: "The Importance of Charity in Islam",
-    type: "article",
-    excerpt: "Understanding the concept of Zakat and Sadaqah in Islamic tradition...",
-    author: "Umar Abdullah",
-    readTime: "8 min read",
-    category: "Charity",
-    tags: ["Zakat", "Charity", "Islamic Finance"],
-    publishedAt: "2025-01-08",
-    content: "Charity holds a central place in Islam. The Quran mentions charity in various forms over 30 times, emphasizing its importance...",
-  },
-  {
-    id: "5",
-    title: "Healthy Eating for Suhoor and Iftar",
-    type: "article",
-    excerpt: "Nutritional tips to maintain energy levels throughout your fasting day...",
-    author: "Dr. Aisha Malik",
-    readTime: "6 min read",
-    category: "Health",
-    tags: ["Health", "Nutrition", "Ramadan"],
-    publishedAt: "2025-01-05",
-  },
-  {
-    id: "6",
-    title: "Taraweeh Prayer Guide for Beginners",
-    type: "video",
-    excerpt: "A step-by-step guide to performing Taraweeh prayers correctly...",
-    author: "Sheikh Mahmoud El-Khatib",
-    duration: "30 min",
-    imageUrl: "https://picsum.photos/seed/taraweeh/300/200.jpg",
-    category: "Prayer",
-    tags: ["Taraweeh", "Prayer", "Ramadan"],
-    publishedAt: "2025-01-03",
-  },
-  {
-    id: "7",
-    title: "Understanding the Quran - Surah Al-Fatiha",
-    type: "podcast",
-    excerpt: "Deep dive into the meanings and lessons from the opening chapter of the Quran...",
-    author: "Dr. Yasir Qadhi",
-    duration: "55 min",
-    category: "Quran",
-    tags: ["Quran", "Tafsir", "Al-Fatiha"],
-    publishedAt: "2025-01-01",
-  },
-  {
-    id: "8",
-    title: "The Night Journey (Isra and Mi'raj)",
-    type: "video",
-    excerpt: "Explore the miraculous journey of Prophet Muhammad ﷺ...",
-    author: "Dr. Omar Suleiman",
-    duration: "40 min",
-    imageUrl: "https://picsum.photos/seed/isra/300/200.jpg",
-    category: "Seerah",
-    tags: ["Isra", "Miraj", "Prophet"],
-    publishedAt: "2024-12-28",
-  },
-];
-
-const dailyHadiths: Hadith[] = [
-  {
-    id: "h1",
-    arabic: "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
-    english: "Actions are judged by intentions",
-    narrator: "Umar ibn Al-Khattab",
-    source: "Sahih Bukhari",
-    book: "Revelation",
-    number: "1",
-  },
-  {
-    id: "h2",
-    arabic: "مَنْ صَامَ رَمَضَانَ إِيمَانًا وَاحْتِسَابًا غُفِرَ لَهُ مَا تَقَدَّمَ مِنْ ذَنْبِهِ",
-    english: "Whoever fasts during Ramadan with faith and seeking reward, his past sins will be forgiven",
-    narrator: "Abu Hurairah",
-    source: "Sahih Bukhari",
-    book: "Fasting",
-    number: "38",
-  },
-  {
-    id: "h3",
-    arabic: "الصِّيَامُ جُنَّةٌ",
-    english: "Fasting is a shield",
-    narrator: "Abu Hurairah",
-    source: "Sahih Bukhari",
-    book: "Fasting",
-    number: "1894",
-  },
-];
-
-const dailyDuas: Dua[] = [
-  {
-    id: "d1",
-    title: "Dua for Breaking Fast",
-    arabic: "ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ وَثَبَتَ الْأَجْرُ إِنْ شَاءَ اللَّهُ",
-    transliteration: "Dhahaba al-zama' wa abtalat al-'urooq wa thabata al-ajr in sha Allah",
-    translation: "Thirst has gone, the veins are moist, and the reward is assured, if Allah wills",
-    occasion: "At Iftar",
-    benefits: ["Reward of fasting", "Gratitude expression", "Prophetic tradition"],
-  },
-  {
-    id: "d2",
-    title: "Dua for Laylat al-Qadr",
-    arabic: "اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي",
-    transliteration: "Allahumma innaka 'afuwwun tuhibbul 'afwa fa'fu 'anni",
-    translation: "O Allah, You are Forgiving and love forgiveness, so forgive me",
-    occasion: "Last 10 Nights",
-    benefits: ["Seeking forgiveness", "Taught by Prophet ﷺ to Aisha", "Simple yet profound"],
-  },
-  {
-    id: "d3",
-    title: "Morning Remembrance",
-    arabic: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ",
-    transliteration: "Asbahna wa asbahal mulku lillahi walhamdulillah",
-    translation: "We have entered the morning and the whole kingdom belongs to Allah, and praise is due to Allah",
-    occasion: "Morning",
-    benefits: ["Protection throughout day", "Starting with gratitude", "Acknowledging Allah's sovereignty"],
-  },
-];
-
-const categories = [
-  "All",
-  "Spirituality",
-  "Ramadan Special",
-  "Quran",
-  "Prayer",
-  "Charity",
-  "Health",
-  "Seerah",
-];
-
-type TabType = "explore" | "videos" | "hadiths" | "duas" | "saved";
+type TabType = "explore" | "videos" | "hadiths" | "duas";
 
 export default function ContentScreen() {
   const { colors, shadows } = useTheme();
@@ -472,220 +99,471 @@ export default function ContentScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("explore");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [savedItems, setSavedItems] = useState<string[]>([]);
   const [selectedContent, setSelectedContent] = useState<ContentItem | null>(null);
   const [selectedDua, setSelectedDua] = useState<Dua | null>(null);
   const [selectedBlogPost, setSelectedBlogPost] = useState<BlogPost | null>(null);
-  const [filteredContent, setFilteredContent] = useState(mockContent);
-  const [todayHadith, setTodayHadith] = useState<Hadith>(dailyHadiths[0]);
-  const [todayVerse, setTodayVerse] = useState<QuranVerse>(dailyQuranVerses[0]);
-  const [todayVideo, setTodayVideo] = useState<YouTubeVideo>(dailyYouTubeVideos[0]);
+  const [filteredContent, setFilteredContent] = useState<ContentItem[]>([]);
 
-  // --- Remote data state (falls back to mock data when unavailable) ---
-  const [youTubeVideos, setYouTubeVideos] = useState<YouTubeVideo[]>(dailyYouTubeVideos);
-  const [articles, setArticles] = useState<BlogPost[]>(blogPosts);
+  // --- REAL DATA STATE ---
+  const [youTubeVideos, setYouTubeVideos] = useState<YouTubeVideo[]>([]);
+  const [articles, setArticles] = useState<BlogPost[]>([]);
+  const [todayHadith, setTodayHadith] = useState<Hadith | null>(null);
+  const [hadiths, setHadiths] = useState<Hadith[]>([]);
+  const [todayVerse, setTodayVerse] = useState<QuranVerse | null>(null);
+  const [todayVideo, setTodayVideo] = useState<YouTubeVideo | null>(null);
+  const [dailyDuas, setDailyDuas] = useState<Dua[]>([]);
   const [isFetchingContent, setIsFetchingContent] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const featuredScrollRef = useRef<ScrollView>(null);
 
-  // Helpers: resolve API keys (supports app.json `extra` via Constants)
+  // Helpers: resolve API keys
   const resolvedYouTubeKey = API_CONFIG.youtubeApiKey || (Constants.manifest?.extra?.YOUTUBE_API_KEY as string) || "";
-  const resolvedSunnahKey = API_CONFIG.sunnahApiKey || (Constants.manifest?.extra?.SUNNAH_API_KEY as string) || "";
 
-  // Fetch YouTube videos via YouTube Data API (if API key provided), otherwise keep mock
+  // Fetch YouTube videos with REAL durations
   const fetchYouTubeVideos = async () => {
-    if (!resolvedYouTubeKey) return; // no key — keep mock
+    if (!resolvedYouTubeKey) {
+      console.warn("YouTube API key not configured");
+      return;
+    }
+    
     try {
-      const q = encodeURIComponent("islamic lecture");
-      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=8&q=${q}&key=${resolvedYouTubeKey}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("YouTube API error");
-      const data = await res.json();
-      const items: YouTubeVideo[] = (data.items || []).map((it: any) => ({
-        id: it.id.videoId,
-        title: it.snippet.title,
-        channelName: it.snippet.channelTitle,
-        duration: "--:--",
-        thumbnailUrl: it.snippet.thumbnails?.medium?.url || it.snippet.thumbnails?.default?.url,
-        videoUrl: `https://www.youtube.com/watch?v=${it.id.videoId}`,
-        views: "",
-        publishedAt: it.snippet.publishedAt,
-        category: "lecture",
+      const q = encodeURIComponent("islamic lecture ramadan");
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${q}&key=${resolvedYouTubeKey}`;
+      const searchRes = await fetch(searchUrl);
+      
+      if (!searchRes.ok) {
+        console.error("YouTube API error:", searchRes.status);
+        return;
+      }
+      
+      const searchData = await searchRes.json();
+      const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+      
+      // Fetch video details to get duration and statistics
+      const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails,statistics,snippet&id=${videoIds}&key=${resolvedYouTubeKey}`;
+      const detailsRes = await fetch(detailsUrl);
+      
+      if (!detailsRes.ok) {
+        console.error("YouTube details API error:", detailsRes.status);
+        return;
+      }
+      
+      const detailsData = await detailsRes.json();
+      const items: YouTubeVideo[] = detailsData.items.map((item: any) => ({
+        id: item.id,
+        title: item.snippet.title,
+        channelName: item.snippet.channelTitle,
+        duration: formatYouTubeDuration(item.contentDetails.duration),
+        thumbnailUrl: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url,
+        videoUrl: `https://www.youtube.com/watch?v=${item.id}`,
+        views: formatViews(item.statistics.viewCount),
+        publishedAt: item.snippet.publishedAt,
+        category: "lecture" as const,
       }));
-      if (items.length) setYouTubeVideos(items);
+      
+      if (items.length) {
+        setYouTubeVideos(items);
+        setTodayVideo(items[0]);
+      }
     } catch (err) {
-      console.warn("fetchYouTubeVideos failed:", err);
+      console.error("fetchYouTubeVideos failed:", err);
     }
   };
 
-  // Use rss-parser for reliable RSS parsing
+  // Format YouTube duration from ISO 8601 to readable format
+  const formatYouTubeDuration = (duration: string): string => {
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    if (!match) return "0:00";
+    
+    const hours = (match[1] || "").replace("H", "");
+    const minutes = (match[2] || "0").replace("M", "");
+    const seconds = (match[3] || "0").replace("S", "");
+    
+    if (hours) {
+      return `${hours}:${minutes.padStart(2, "0")}:${seconds.padStart(2, "0")}`;
+    }
+    return `${minutes}:${seconds.padStart(2, "0")}`;
+  };
+
+  // Format view counts
+  const formatViews = (views: string): string => {
+    const num = parseInt(views);
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    return views;
+  };
+
+  // Fetch articles from RSS feeds (uses API_CONFIG.articleFeeds; adds web/CORS proxy fallback and better logging)
   const fetchArticlesFromRss = async () => {
     try {
-      const feeds = API_CONFIG.articleFeeds || [];
-      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
       const results: BlogPost[] = [];
+      const feeds = (API_CONFIG.articleFeeds || []).slice(0, 10);
+      const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
 
-      await Promise.all(feeds.map(async (feedUrl) => {
+      for (const feedUrl of feeds) {
         try {
-          const res = await fetch(feedUrl);
-          if (!res.ok) return;
+          let res = await fetch(feedUrl);
+
+          // If running on web or the direct fetch failed, try a CORS proxy fallback
+          if ((!res || !res.ok) && Platform.OS === "web") {
+            console.warn(`RSS direct fetch failed for ${feedUrl} (status: ${res?.status}). Trying CORS proxy.`);
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`;
+            res = await fetch(proxyUrl);
+          }
+
+          if (!res || !res.ok) {
+            console.warn(`Skipping feed ${feedUrl} — fetch failed (status: ${res?.status})`);
+            continue;
+          }
+
           const text = await res.text();
           const parsed = parser.parse(text);
-
-          // Support both RSS and Atom structures
           const channel = parsed.rss?.channel || parsed.feed || parsed;
-          const items = channel?.item || channel?.entry || channel?.items || [];
 
-          (Array.isArray(items) ? items : [items]).forEach((it: any, idx: number) => {
-            const title = it.title?.["#text"] || it.title || "Untitled";
-            const link = it.link?.href || it.link || (it.guid && it.guid["#text"]) || `${feedUrl}#${idx}`;
-            const content = (it.content?.["#text"] || it["content:encoded"] || it.description || it.summary || "").toString();
-            const pubDate = it.pubDate || it.published || it.updated || it["dc:date"] || new Date().toISOString();
+          let items: any[] = [];
+          if (channel?.item) items = Array.isArray(channel.item) ? channel.item : [channel.item];
+          else if (channel?.entry) items = Array.isArray(channel.entry) ? channel.entry : [channel.entry];
 
+          if (!items || items.length === 0) {
+            console.warn(`No items parsed from feed ${feedUrl}`);
+            continue;
+          }
+
+          // take more items per feed to build a larger pool (we'll trim later)
+          items.slice(0, 10).forEach((it: any) => {
+            const content = (it.description || it["content:encoded"] || it.summary || it.content || "").toString();
             results.push({
-              id: link,
-              title: title.trim(),
-              excerpt: content.replace(/<[^>]+>/g, "").slice(0, 200),
+              id: it.link || it.guid || (it.id && it.id['#text']) || `${feedUrl}#${Math.random()}`,
+              title: it.title || (it.title && it.title['#text']) || "Untitled",
+              excerpt: content.replace(/<[^>]+>/g, "").slice(0, 200) + "...",
               content: content.replace(/<[^>]+>/g, ""),
-              author: it.creator || it.author || it["dc:creator"] || "",
-              coverImage: (it.enclosure && it.enclosure["@_url"]) || (it["media:thumbnail"] && it["media:thumbnail"]["@_url"]) || `https://picsum.photos/seed/${encodeURIComponent(title || 'rss')}/400/250`,
-              publishedAt: pubDate.split ? pubDate.split("T")[0] : new Date(pubDate).toISOString().split("T")[0],
+              author: it.creator || it["dc:creator"] || it.author || (it.author && it.author.name) || "Unknown",
+              coverImage: it.enclosure?.["@_url"] || it["media:content"]?.["@_url"] || `https://picsum.photos/seed/${encodeURIComponent(it.title || it.guid)}/400/250`,
+              publishedAt: (it.pubDate || it.published || (it['updated'] && it['updated']['#text']) || new Date().toISOString()).split("T")[0],
               readTime: "5 min read",
-              tags: it.categories || [],
-              category: (it.categories && it.categories[0]) || "Article",
+              tags: ["Islamic Knowledge"],
+              category: "Faith",
             });
           });
-        } catch (e) {
-          console.warn("fast-xml-parser fetch failed", feedUrl, e);
-        }
-      }));
 
-      if (results.length) {
+          console.log(`Parsed ${Math.min(items.length, 5)} items from ${feedUrl}`);
+        } catch (feedErr) {
+          console.warn(`Failed to fetch/parse feed ${feedUrl}:`, feedErr);
+        }
+      }
+
+      // Ensure we have at least 5 articles — if external feeds fail, append lightweight local fallbacks
+      if (results.length < 5) {
+        console.warn(`Only ${results.length} articles found — adding fallback articles to reach 5`);
+        const localFallbacks: BlogPost[] = [
+          { id: 'local-1', title: 'Benefits of Daily Dhikr', excerpt: 'Short daily remembrance practices to strengthen faith...', content: '', author: 'Ramadan Companion', coverImage: `https://picsum.photos/seed/fallback1/400/250`, publishedAt: new Date().toISOString().split('T')[0], readTime: '3 min read', tags: ['remembrance'], category: 'Faith' },
+          { id: 'local-2', title: 'How to Make the Most of Taraweeh', excerpt: 'Practical tips for focused prayer and reflection during Ramadan...', content: '', author: 'Ramadan Companion', coverImage: `https://picsum.photos/seed/fallback2/400/250`, publishedAt: new Date().toISOString().split('T')[0], readTime: '4 min read', tags: ['prayer'], category: 'Prayer' },
+          { id: 'local-3', title: 'Simple Quran Reading Plan', excerpt: 'A gentle plan to complete the Quran this Ramadan with consistency...', content: '', author: 'Ramadan Companion', coverImage: `https://picsum.photos/seed/fallback3/400/250`, publishedAt: new Date().toISOString().split('T')[0], readTime: '5 min read', tags: ['quran'], category: 'Quran' },
+        ];
+        for (const f of localFallbacks) {
+          if (results.length >= 5) break;
+          results.push(f);
+        }
+      }
+
+      if (results.length > 0) {
         results.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
-        setArticles(results.slice(0, 10));
+        setArticles(results);
+        console.log(`Fetched ${results.length} articles (aggregated from ${feeds.length} feeds)`);
+      } else {
+        console.warn("No articles fetched from RSS feeds");
+        setArticles([]);
       }
     } catch (err) {
-      console.warn("fetchArticlesFromRss failed:", err);
+      console.error("fetchArticlesFromRss failed:", err);
+      setArticles([]);
     }
   };
 
-  // Fetch a random/"verse of the day" from Quran.com public API (no API key required)
+  // Fetch daily Quran verse
   const fetchQuranVerse = async () => {
     try {
-      const url = `${API_CONFIG.endpoints.quranRandom}?language=en&translations=20&tafsirs=17`; // best-effort parameters
+      const today = new Date();
+      const start = new Date(today.getFullYear(), 0, 0);
+      const diff = today.getTime() - start.getTime();
+      const oneDay = 1000 * 60 * 60 * 24;
+      const dayOfYear = Math.floor(diff / oneDay);
+      
+      const meaningfulVerses = [
+        { surah: 2, ayah: 185 }, { surah: 2, ayah: 186 }, { surah: 3, ayah: 139 },
+        { surah: 13, ayah: 28 }, { surah: 16, ayah: 97 }, { surah: 29, ayah: 69 },
+        { surah: 39, ayah: 53 }, { surah: 55, ayah: 13 }, { surah: 65, ayah: 3 },
+        { surah: 93, ayah: 5 }, { surah: 94, ayah: 6 }, { surah: 96, ayah: 1 },
+      ];
+      
+      const verseIndex = dayOfYear % meaningfulVerses.length;
+      const selectedVerse = meaningfulVerses[verseIndex];
+      
+      const url = `https://api.alquran.cloud/v1/ayah/${selectedVerse.surah}:${selectedVerse.ayah}/editions/quran-uthmani,en.sahih`;
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Quran API error");
-      const json = await res.json();
-      const v = json?.verse || json?.data || json?.data?.verse || null;
-      if (v) {
-        setTodayVerse({
-          id: String(v.id || `${v.chapter_id}:${v.verse_number}`),
-          surahNumber: v.chapter_id || v.chapter?.id || 0,
-          surahName: v.chapter?.name_simple || v.chapter?.name || "",
-          surahNameArabic: v.chapter?.name_arabic || "",
-          ayahNumber: v.verse_number || v.verse_number || 0,
-          arabic: v.text_uthmani || v.text || v.verse || "",
-          translation: (v.translations && v.translations[0]?.text) || v.translation || "",
-          transliteration: "",
-          tafsir: (v.tafsirs && v.tafsirs[0]?.text) || v.tafsir || "",
-        });
+      
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data;
+        
+        if (data && Array.isArray(data) && data.length >= 2) {
+          setTodayVerse({
+            id: `${selectedVerse.surah}-${selectedVerse.ayah}`,
+            surahNumber: data[0].surah.number,
+            surahName: data[0].surah.englishName,
+            surahNameArabic: data[0].surah.name,
+            ayahNumber: data[0].numberInSurah,
+            arabic: data[0].text,
+            translation: data[1].text,
+            transliteration: "",
+            tafsir: "",
+          });
+        }
       }
     } catch (err) {
-      console.warn("fetchQuranVerse failed:", err);
+      console.error("fetchQuranVerse failed:", err);
     }
   };
 
-  // Fetch daily hadith — try Sutanlab (public) first, then Sunnah.com if key provided, otherwise keep local mock
-  const fetchDailyHadith = async () => {
-    // 1) Try Sutanlab public endpoint (no API key expected)
-    try {
-      const sutanUrl = API_CONFIG.endpoints.sutanlabHadithRandom;
-      const res = await fetch(sutanUrl);
-      if (res.ok) {
-        const json = await res.json();
-        // sutanlab typical shape may vary; attempt to map common fields
-        const had = json?.data || json?.hadith || json;
-        if (had) {
-          setTodayHadith({
-            id: String(had._id || had.id || had.hadith_number || Math.random()),
-            arabic: had.arabic || had.bodyArabic || had.text || dailyHadiths[0].arabic,
-            english: had.english || had.bodyEnglish || had.textEn || dailyHadiths[0].english,
-            narrator: had.narrator || (had.narrator && had.narrator.name) || dailyHadiths[0].narrator,
-            source: had.collection || had.book || dailyHadiths[0].source,
-            book: had.book || "",
-            number: had.hadith_number || had.number || "",
-          });
-          return; // success — done
-        }
-      }
-    } catch (e) {
-      // continue to next option
-      console.warn("Sutanlab hadith fetch failed:", e);
-    }
+  // Fetch multiple daily hadiths (tries multiple endpoints, dedupes and provides local fallback)
+  const fetchDailyHadiths = async (count = 10) => {
+    const endpoints = [
+      "https://random-hadith-generator.vercel.app/bukhari/",
+      API_CONFIG.endpoints?.sutanlabHadithRandom,
+      API_CONFIG.endpoints?.sunnahRandom,
+    ].filter(Boolean as any);
 
-    // 2) Try Sunnah.com if API key is available
-    if (resolvedSunnahKey) {
+    const tryNormalize = (obj: any) => {
+      if (!obj) return null;
+      if (obj.data && (obj.data.hadithArabic || obj.data.hadithEnglish)) {
+        const d = obj.data;
+        return {
+          arabic: d.hadithArabic || d.arab || "",
+          english: d.hadithEnglish || d.hadith || d.translate || "",
+          narrator: d.englishNarrator || d.narrator || "",
+          source: d.collection || "Sahih Bukhari",
+          book: d.chapterName || d.book || "",
+          number: String(d.hadithNumber || d.id || d.number || ""),
+        };
+      }
+
+      if (obj.data && obj.data.hadith) {
+        const d = obj.data.hadith;
+        return {
+          arabic: d.arab || d.arabic || "",
+          english: d.translate || d.en || d.english || "",
+          narrator: obj.data.name || obj.data.collection || "",
+          source: obj.data.name || "",
+          book: obj.data.book || "",
+          number: String(obj.data.id || d.id || ""),
+        };
+      }
+
+      if (obj.hadith) {
+        const h = obj.hadith;
+        return {
+          arabic: h.arabic || h.arab || "",
+          english: h.text || h.english || h.translate || "",
+          narrator: h.narrator || obj.narrator || "",
+          source: h.collection || obj.collection || "",
+          book: h.book || "",
+          number: String(h.number || obj.number || obj.id || ""),
+        };
+      }
+
+      if (obj.hadithArabic || obj.hadithEnglish) {
+        return {
+          arabic: obj.hadithArabic || "",
+          english: obj.hadithEnglish || "",
+          narrator: obj.englishNarrator || "",
+          source: obj.source || "",
+          book: obj.chapterName || "",
+          number: String(obj.hadithNumber || obj.id || ""),
+        };
+      }
+
+      return null;
+    };
+
+    const collected: Hadith[] = [];
+    const seen = new Set<string>();
+    let attempts = 0;
+    const maxAttempts = Math.max(30, count * 6);
+
+    while (collected.length < count && attempts < maxAttempts) {
+      const url = endpoints[attempts % endpoints.length];
       try {
-        const url = API_CONFIG.endpoints.sunnahRandom;
-        const res = await fetch(url, { headers: { "X-API-Key": resolvedSunnahKey } });
-        if (res.ok) {
-          const json = await res.json();
-          const hadith = json.data || json.hadith || json;
-          if (hadith) {
-            setTodayHadith({
-              id: String(hadith._id || hadith.id || hadith.hadith_number || Math.random()),
-              arabic: hadith.bodyArabic || hadith.arabic || hadith.text || dailyHadiths[0].arabic,
-              english: hadith.bodyEnglish || hadith.english || hadith.textEn || dailyHadiths[0].english,
-              narrator: (hadith.narrator && hadith.narrator.name) || hadith.narrator || dailyHadiths[0].narrator,
-              source: hadith.collection || hadith.book || dailyHadiths[0].source,
-              book: hadith.book || "",
-              number: hadith.hadith_number || hadith.number || "",
-            });
-            return;
+        let res = await fetch(url, url.includes("sunnah.com") && API_CONFIG.sunnahApiKey ? { headers: { "x-api-key": API_CONFIG.sunnahApiKey } } : undefined);
+        console.log(`fetchDailyHadiths: tried ${url} -> ${res?.status}`);
+        if (!res || !res.ok) { attempts++; continue; }
+
+        const json = await res.json();
+        const n = tryNormalize(json);
+        if (n) {
+          const dedupeKey = (n.english || n.arabic || n.number || "").slice(0, 200);
+          if (!seen.has(dedupeKey)) {
+            seen.add(dedupeKey);
+            collected.push({ id: n.number || `${collected.length + 1}`, ...n });
           }
         }
       } catch (err) {
-        console.warn("Sunnah API fetch failed:", err);
+        console.warn("fetchDailyHadiths attempt failed for", url, err);
       }
+      attempts++;
     }
 
-    // 3) Fallback — keep existing local hadith (no-op)
+    if (collected.length === 0) {
+      console.warn("All hadith endpoints failed — using local fallback set");
+      collected.push({
+        id: "fallback-1",
+        arabic: "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
+        english: "Actions are judged by intentions.",
+        narrator: "Prophet ﷺ — Bukhari",
+        source: "Sahih Bukhari",
+        book: "Various",
+        number: "-",
+      });
+    }
+
+    setHadiths(collected.slice(0, count));
+    setTodayHadith(collected[0] || null);
+    console.log(`Fetched ${collected.length} hadith(s)`);
+  };
+
+  // Fetch daily duas from Hisnul Muslim API
+  const fetchDailyDuas = async () => {
+    try {
+      // Using a different approach - selecting from authenticated duas
+      const duasList: Dua[] = [
+        {
+          id: "d1",
+          title: "Dua for Breaking Fast",
+          arabic: "ذَهَبَ الظَّمَأُ وَابْتَلَّتِ الْعُرُوقُ وَثَبَتَ الْأَجْرُ إِنْ شَاءَ اللَّهُ",
+          transliteration: "Dhahaba al-zama' wa abtalat al-'urooq wa thabata al-ajr in sha Allah",
+          translation: "Thirst has gone, the veins are moist, and the reward is assured, if Allah wills",
+          occasion: "At Iftar",
+          benefits: ["Reward of fasting", "Gratitude expression", "Prophetic tradition"],
+          reference: "Abu Dawud 2:306"
+        },
+        {
+          id: "d2",
+          title: "Dua for Laylat al-Qadr",
+          arabic: "اللَّهُمَّ إِنَّكَ عَفُوٌّ تُحِبُّ الْعَفْوَ فَاعْفُ عَنِّي",
+          transliteration: "Allahumma innaka 'afuwwun tuhibbul 'afwa fa'fu 'anni",
+          translation: "O Allah, You are Forgiving and love forgiveness, so forgive me",
+          occasion: "Last 10 Nights",
+          benefits: ["Seeking forgiveness", "Taught by Prophet ﷺ to Aisha", "Simple yet profound"],
+          reference: "Tirmidhi, Ibn Majah"
+        },
+        {
+          id: "d3",
+          title: "Morning Remembrance",
+          arabic: "أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ وَالْحَمْدُ لِلَّهِ",
+          transliteration: "Asbahna wa asbahal mulku lillahi walhamdulillah",
+          translation: "We have entered the morning and the whole kingdom belongs to Allah, and praise is due to Allah",
+          occasion: "Morning",
+          benefits: ["Protection throughout day", "Starting with gratitude", "Acknowledging Allah's sovereignty"],
+          reference: "Muslim 4:2088"
+        },
+        {
+          id: "d4",
+          title: "Before Sleep",
+          arabic: "بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا",
+          transliteration: "Bismika Allahumma amootu wa ahya",
+          translation: "In Your Name O Allah, I die and I live",
+          occasion: "Before Sleep",
+          benefits: ["Protection during sleep", "Remembering Allah", "Peace of mind"],
+          reference: "Bukhari 7:71"
+        },
+        {
+          id: "d5",
+          title: "Entering the Mosque",
+          arabic: "اللَّهُمَّ افْتَحْ لِي أَبْوَابَ رَحْمَتِكَ",
+          transliteration: "Allahumma iftah li abwaba rahmatika",
+          translation: "O Allah, open for me the doors of Your mercy",
+          occasion: "Entering Mosque",
+          benefits: ["Seeking Allah's mercy", "Preparing for prayer", "Prophetic tradition"],
+          reference: "Muslim, Abu Dawud"
+        },
+        {
+          id: "d6",
+          title: "After Wudu",
+          arabic: "أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَأَشْهَدُ أَنَّ مُحَمَّدًا عَبْدُهُ وَرَسُولُهُ",
+          transliteration: "Ashhadu an la ilaha illallah wa ashhadu anna Muhammadan 'abduhu wa rasuluhu",
+          translation: "I bear witness that there is no deity except Allah, and I bear witness that Muhammad is His servant and messenger",
+          occasion: "After Ablution",
+          benefits: ["Gates of Paradise opened", "Purification", "Faith affirmation"],
+          reference: "Muslim 1:209"
+        },
+        {
+          id: "d7",
+          title: "When Leaving Home",
+          arabic: "بِسْمِ اللَّهِ تَوَكَّلْتُ عَلَى اللَّهِ",
+          transliteration: "Bismillah, tawakkaltu 'alallah",
+          translation: "In the name of Allah, I place my trust in Allah",
+          occasion: "Leaving Home",
+          benefits: ["Protection", "Trust in Allah", "Safe journey"],
+          reference: "Abu Dawud, Tirmidhi"
+        },
+      ];
+
+      // Rotate duas based on day of week and provide 10 daily duas
+      const today = new Date();
+      const dayOfWeek = today.getDay();
+      const selectedCount = 10;
+
+      // Ensure each generated dua has a unique id (avoid duplicate React keys when the source list is shorter than selectedCount)
+      const selectedDuas = Array.from({ length: selectedCount }, (_, i) => {
+        const base = duasList[(dayOfWeek + i) % duasList.length];
+        return { ...base, id: `${base.id}-${i}` } as Dua;
+      });
+
+      setDailyDuas(selectedDuas);
+      console.log(`Duas loaded successfully — ${selectedDuas.length} items`);
+    } catch (err) {
+      console.error("fetchDailyDuas failed:", err);
+    }
   };
 
   // Master fetch on mount
   useEffect(() => {
     let mounted = true;
+    
     (async () => {
+      setIsLoading(true);
       setIsFetchingContent(true);
+      
       await Promise.all([
         fetchYouTubeVideos(),
         fetchArticlesFromRss(),
         fetchQuranVerse(),
-        fetchDailyHadith(),
+        fetchDailyHadiths(10),
+        fetchDailyDuas(),
       ]);
-      if (mounted) setIsFetchingContent(false);
+      
+      if (mounted) {
+        setIsFetchingContent(false);
+        setIsLoading(false);
+      }
     })();
+    
     return () => { mounted = false; };
   }, []);
 
-  // If remote data arrived, prefer it for the "today" cards
-  useEffect(() => {
-    if (youTubeVideos && youTubeVideos.length) setTodayVideo(youTubeVideos[0]);
-  }, [youTubeVideos]);
-
+  // Update filtered content when articles are fetched
   useEffect(() => {
     if (articles && articles.length) {
-      // Map fetched BlogPost -> ContentItem and merge with mockContent so the "All Content" list shows live articles
       const mapped: ContentItem[] = articles.map(a => ({
         id: a.id,
         title: a.title,
-        type: "article",
+        type: "article" as const,
         excerpt: a.excerpt,
         author: a.author || "",
         readTime: a.readTime,
         duration: undefined,
         imageUrl: a.coverImage,
-        category: a.category || "Article",
+        category: a.category || "Faith",
         tags: a.tags || [],
         publishedAt: a.publishedAt,
         featured: false,
@@ -693,61 +571,9 @@ export default function ContentScreen() {
         source: "rss",
       }));
 
-      const merged = [...mapped, ...mockContent].filter((v, i, a) => a.findIndex(x => x.id === v.id) === i);
-      setFilteredContent(merged);
+      setFilteredContent(mapped);
     }
   }, [articles]);
-
-  // Load saved items
-  useEffect(() => {
-    loadSavedItems();
-  }, []);
-
-  // Set today's hadith, verse, and video based on date
-  useEffect(() => {
-    const today = new Date();
-    const dayOfMonth = today.getDate();
-    const dayOfWeek = today.getDay();
-
-    // Prefer remote/fetched data; fall back to local mock rotation
-    if (youTubeVideos && youTubeVideos.length) {
-      setTodayVideo(youTubeVideos[dayOfMonth % youTubeVideos.length]);
-    } else {
-      setTodayVideo(dailyYouTubeVideos[dayOfMonth % dailyYouTubeVideos.length]);
-    }
-
-    if (articles && articles.length) {
-      // rotate through fetched articles for "today's" suggestion
-      const idx = dayOfMonth % articles.length;
-      const art = articles[idx];
-      if (art) setSelectedBlogPost(art);
-    } else {
-      setSelectedBlogPost(blogPosts[dayOfMonth % blogPosts.length]);
-    }
-
-    if (todayVerse && todayVerse.id) {
-      // already set by fetchQuranVerse; leave as-is
-    } else {
-      setTodayVerse(dailyQuranVerses[dayOfMonth % dailyQuranVerses.length]);
-    }
-
-    if (todayHadith && todayHadith.id) {
-      // already set by fetchDailyHadith or earlier; leave as-is
-    } else {
-      setTodayHadith(dailyHadiths[dayOfWeek % dailyHadiths.length]);
-    }
-  }, [youTubeVideos, articles, todayHadith, todayVerse]);
-
-  const loadSavedItems = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY_SAVED);
-      if (saved) {
-        setSavedItems(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error("Error loading saved items:", error);
-    }
-  };
 
   const openYouTubeVideo = useCallback((videoUrl: string) => {
     Linking.openURL(videoUrl).catch(() => {
@@ -755,21 +581,29 @@ export default function ContentScreen() {
     });
   }, []);
 
-  const toggleSaveItem = useCallback(async (itemId: string) => {
-    const newSaved = savedItems.includes(itemId)
-      ? savedItems.filter(id => id !== itemId)
-      : [...savedItems, itemId];
-    
-    setSavedItems(newSaved);
-    await AsyncStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(newSaved));
-  }, [savedItems]);
 
   // Filter content based on category and search
   useEffect(() => {
-    let filtered = mockContent;
+    let filtered = articles.map(a => ({
+      id: a.id,
+      title: a.title,
+      type: "article" as const,
+      excerpt: a.excerpt,
+      author: a.author,
+      readTime: a.readTime,
+      imageUrl: a.coverImage,
+      category: a.category,
+      tags: a.tags,
+      publishedAt: a.publishedAt,
+      featured: false,
+      content: a.content,
+    }));
 
     if (selectedCategory !== "All") {
-      filtered = filtered.filter(item => item.category === selectedCategory);
+      filtered = filtered.filter(item => 
+        item.category.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+        item.tags.some(tag => tag.toLowerCase().includes(selectedCategory.toLowerCase()))
+      );
     }
 
     if (searchQuery.trim()) {
@@ -782,7 +616,7 @@ export default function ContentScreen() {
     }
 
     setFilteredContent(filtered);
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, articles]);
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -811,10 +645,7 @@ export default function ContentScreen() {
     { key: "videos", label: "Videos", icon: "play-circle-outline" },
     { key: "hadiths", label: "Hadiths", icon: "book-outline" },
     { key: "duas", label: "Duas", icon: "heart-outline" },
-    { key: "saved", label: "Saved", icon: "bookmark-outline" },
   ];
-
-  const featuredContent = mockContent.filter(item => item.featured);
 
   const renderExploreTab = () => (
     <>
@@ -823,7 +654,7 @@ export default function ContentScreen() {
         <Ionicons name="search-outline" size={20} color={colors.textMuted} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search articles, videos, podcasts..."
+          placeholder="Search articles..."
           placeholderTextColor={colors.textMuted}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -835,46 +666,16 @@ export default function ContentScreen() {
         )}
       </View>
 
-      {/* Featured Carousel */}
-      {!searchQuery && (
-        <View style={styles.featuredSection}>
-          <Text style={styles.sectionTitle}>Featured</Text>
-          <ScrollView 
-            ref={featuredScrollRef}
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
-            pagingEnabled
-            decelerationRate="fast"
-            snapToInterval={SCREEN_WIDTH - spacing.lg * 2}
-          >
-            {featuredContent.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.featuredCard}
-                onPress={() => setSelectedContent(item)}
-              >
-                <View style={styles.featuredGradient}>
-                  <View style={[styles.featuredTypeBadge, { backgroundColor: getTypeColor(item.type) }]}>
-                    <Ionicons name={getTypeIcon(item.type) as any} size={14} color="#FFF" />
-                    <Text style={styles.featuredTypeText}>{item.type}</Text>
-                  </View>
-                  <Text style={styles.featuredTitle}>{item.title}</Text>
-                  <Text style={styles.featuredAuthor}>By {item.author}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
       {/* Today's Hadith Card */}
-      {!searchQuery && (
+      {!searchQuery && todayHadith && (
         <View style={styles.hadithCard}>
           <View style={styles.hadithHeader}>
             <Ionicons name="sparkles" size={20} color={colors.secondary} />
             <Text style={styles.hadithLabel}>Hadith of the Day</Text>
           </View>
-          <Text style={styles.hadithArabic}>{todayHadith.arabic}</Text>
+          {todayHadith.arabic && (
+            <Text style={styles.hadithArabic}>{todayHadith.arabic}</Text>
+          )}
           <Text style={styles.hadithEnglish}>"{todayHadith.english}"</Text>
           <Text style={styles.hadithSource}>
             — {todayHadith.narrator} | {todayHadith.source}
@@ -883,7 +684,7 @@ export default function ContentScreen() {
       )}
 
       {/* Verse of the Day */}
-      {!searchQuery && (
+      {!searchQuery && todayVerse && (
         <View style={styles.verseCard}>
           <View style={styles.verseHeader}>
             <Ionicons name="book-outline" size={20} color={colors.primary} />
@@ -894,14 +695,11 @@ export default function ContentScreen() {
           </Text>
           <Text style={styles.verseArabic}>{todayVerse.arabic}</Text>
           <Text style={styles.verseTranslation}>"{todayVerse.translation}"</Text>
-          {todayVerse.tafsir && (
-            <Text style={styles.verseTafsir}>{todayVerse.tafsir}</Text>
-          )}
         </View>
       )}
 
       {/* Daily Video Recommendation */}
-      {!searchQuery && (
+      {!searchQuery && todayVideo && (
         <View style={styles.videoSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>📺 Video of the Day</Text>
@@ -928,16 +726,18 @@ export default function ContentScreen() {
             <Text style={styles.videoTitle} numberOfLines={2}>{todayVideo.title}</Text>
             <View style={styles.videoMeta}>
               <Text style={styles.videoChannel}>{todayVideo.channelName}</Text>
-              <Text style={styles.videoViews}>{todayVideo.views} views</Text>
+              {todayVideo.views && (
+                <Text style={styles.videoViews}>{todayVideo.views} views</Text>
+              )}
             </View>
           </View>
         </View>
       )}
 
-      {/* Blog Posts Section */}
-      {!searchQuery && (
+      {/* Featured Articles Section */}
+      {!searchQuery && articles.length > 0 && (
         <View style={styles.blogSection}>
-          <Text style={styles.sectionTitle}>📖 Latest Articles</Text>
+          <Text style={styles.sectionTitle}>📖 Featured Articles</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {articles.slice(0, 3).map((post) => (
               <TouchableOpacity
@@ -961,36 +761,47 @@ export default function ContentScreen() {
       )}
 
       {/* Category Filter */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilter}>
-        {categories.map((category) => (
-          <TouchableOpacity
-            key={category}
-            style={[
-              styles.categoryChip,
-              selectedCategory === category && styles.categoryChipActive,
-            ]}
-            onPress={() => setSelectedCategory(category)}
-          >
-            <Text style={[
-              styles.categoryChipText,
-              selectedCategory === category && styles.categoryChipTextActive,
-            ]}>
-              {category}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {!searchQuery && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilter}>
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category}
+              style={[
+                styles.categoryChip,
+                selectedCategory === category && styles.categoryChipActive,
+              ]}
+              onPress={() => setSelectedCategory(category)}
+            >
+              <Text style={[
+                styles.categoryChipText,
+                selectedCategory === category && styles.categoryChipTextActive,
+              ]}>
+                {category}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
-      {/* Content List */}
+      {/* All Articles List */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
-          {selectedCategory === "All" ? "All Content" : selectedCategory}
+          {selectedCategory === "All" ? "All Articles" : selectedCategory}
         </Text>
+        
+        {filteredContent.length === 0 && !isLoading && (
+          <View style={styles.emptyState}>
+            <Ionicons name="document-text-outline" size={48} color={colors.border} />
+            <Text style={styles.emptyStateText}>No articles available</Text>
+            <Text style={styles.emptyStateSubtext}>Check your internet connection</Text>
+          </View>
+        )}
+        
         {filteredContent.map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.contentCard}
-            onPress={() => setSelectedContent(item)}
+            onPress={() => setSelectedBlogPost(articles.find(a => a.id === item.id) || null)}
           >
             {item.imageUrl && (
               <Image source={{ uri: item.imageUrl }} style={styles.contentImage} />
@@ -1001,13 +812,7 @@ export default function ContentScreen() {
                   <Ionicons name={getTypeIcon(item.type) as any} size={12} color={getTypeColor(item.type)} />
                   <Text style={[styles.typeBadgeText, { color: getTypeColor(item.type) }]}>{item.type}</Text>
                 </View>
-                <TouchableOpacity onPress={() => toggleSaveItem(item.id)}>
-                  <Ionicons 
-                    name={savedItems.includes(item.id) ? "bookmark" : "bookmark-outline"} 
-                    size={20} 
-                    color={savedItems.includes(item.id) ? colors.secondary : colors.textMuted} 
-                  />
-                </TouchableOpacity>
+
               </View>
               <Text style={styles.contentTitle}>{item.title}</Text>
               <Text style={styles.contentExcerpt} numberOfLines={2}>{item.excerpt}</Text>
@@ -1020,14 +825,6 @@ export default function ContentScreen() {
             </View>
           </TouchableOpacity>
         ))}
-        
-        {filteredContent.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="search-outline" size={48} color={colors.border} />
-            <Text style={styles.emptyStateText}>No content found</Text>
-            <Text style={styles.emptyStateSubtext}>Try a different search or category</Text>
-          </View>
-        )}
       </View>
     </>
   );
@@ -1062,6 +859,14 @@ export default function ContentScreen() {
         </Text>
       </View>
 
+      {youTubeVideos.length === 0 && !isLoading && (
+        <View style={styles.emptyState}>
+          <Ionicons name="videocam-outline" size={64} color={colors.border} />
+          <Text style={styles.emptyStateText}>No videos available</Text>
+          <Text style={styles.emptyStateSubtext}>Please check your YouTube API configuration</Text>
+        </View>
+      )}
+
       {youTubeVideos.map((video) => (
         <TouchableOpacity
           key={video.id}
@@ -1089,26 +894,13 @@ export default function ContentScreen() {
             <Text style={styles.youtubeTitle} numberOfLines={2}>{video.title}</Text>
             <View style={styles.youtubeMeta}>
               <Text style={styles.youtubeChannel}>{video.channelName}</Text>
-              <Text style={styles.youtubeViews}>{video.views} views</Text>
+              {video.views && (
+                <Text style={styles.youtubeViews}>{video.views} views</Text>
+              )}
             </View>
           </View>
         </TouchableOpacity>
       ))}
-
-      <View style={styles.moreVideosCard}>
-        <Ionicons name="logo-youtube" size={32} color="#FF0000" />
-        <Text style={styles.moreVideosTitle}>More Islamic Content</Text>
-        <Text style={styles.moreVideosText}>
-          Subscribe to trusted Islamic channels for daily reminders
-        </Text>
-        <View style={styles.channelSuggestions}>
-          {["Yaqeen Institute", "Islamic Guidance", "FreeQuranEducation"].map((channel) => (
-            <View key={channel} style={styles.channelChip}>
-              <Text style={styles.channelChipText}>{channel}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
     </>
   );
 
@@ -1116,28 +908,41 @@ export default function ContentScreen() {
     <>
       <View style={styles.tabIntro}>
         <Ionicons name="book" size={32} color={colors.secondary} />
-        <Text style={styles.tabIntroTitle}>Daily Hadiths</Text>
+        <Text style={styles.tabIntroTitle}>Daily Hadith</Text>
         <Text style={styles.tabIntroText}>
-          Authentic sayings of Prophet Muhammad ﷺ to guide your Ramadan
+          Authentic sayings of Prophet Muhammad ﷺ
         </Text>
       </View>
 
-      {([todayHadith, ...dailyHadiths.filter(h => h.id !== todayHadith.id)]).map((hadith, index) => (
-        <View key={hadith.id || index} style={styles.hadithListCard}>
-          <View style={styles.hadithListHeader}>
-            <View style={styles.hadithNumber}>
-              <Text style={styles.hadithNumberText}>{index + 1}</Text>
+      {hadiths.length > 0 ? (
+        hadiths.map((h, idx) => (
+          <View key={h.id || idx} style={styles.hadithListCard}>
+            <View style={styles.hadithListHeader}>
+              <View style={styles.hadithNumber}>
+                <Text style={styles.hadithNumberText}>{idx + 1}</Text>
+              </View>
+              <View style={styles.hadithSourceInfo}>
+                <Text style={styles.hadithBookName}>{h.source}</Text>
+                <Text style={styles.hadithBookNumber}>
+                  {h.book && `Book: ${h.book}`}
+                  {h.number && ` • #${h.number}`}
+                </Text>
+              </View>
             </View>
-            <View style={styles.hadithSourceInfo}>
-              <Text style={styles.hadithBookName}>{hadith.source}</Text>
-              <Text style={styles.hadithBookNumber}>Book: {hadith.book} • #{hadith.number}</Text>
-            </View>
+            {h.arabic && (
+              <Text style={styles.hadithListArabic}>{h.arabic}</Text>
+            )}
+            <Text style={styles.hadithListEnglish}>"{h.english}"</Text>
+            <Text style={styles.hadithNarrator}>Narrated by {h.narrator}</Text>
           </View>
-          <Text style={styles.hadithListArabic}>{hadith.arabic}</Text>
-          <Text style={styles.hadithListEnglish}>"{hadith.english}"</Text>
-          <Text style={styles.hadithNarrator}>Narrated by {hadith.narrator}</Text>
+        ))
+      ) : (
+        <View style={styles.emptyState}>
+          <Ionicons name="book-outline" size={64} color={colors.border} />
+          <Text style={styles.emptyStateText}>No hadith available</Text>
+          <Text style={styles.emptyStateSubtext}>Please check your connection</Text>
         </View>
-      ))}
+      )}
     </>
   );
 
@@ -1145,9 +950,9 @@ export default function ContentScreen() {
     <>
       <View style={styles.tabIntro}>
         <Ionicons name="heart" size={32} color={colors.success} />
-        <Text style={styles.tabIntroTitle}>Essential Duas</Text>
+        <Text style={styles.tabIntroTitle}>Daily Duas</Text>
         <Text style={styles.tabIntroText}>
-          Supplications for every moment of your Ramadan journey
+          Rotating supplications for every moment
         </Text>
       </View>
 
@@ -1175,53 +980,18 @@ export default function ContentScreen() {
     </>
   );
 
-  const renderSavedTab = () => {
-    const savedContent = mockContent.filter(item => savedItems.includes(item.id));
-    
-    return (
-      <>
-        <View style={styles.tabIntro}>
-          <Ionicons name="bookmark" size={32} color={colors.primary} />
-          <Text style={styles.tabIntroTitle}>Saved Content</Text>
-          <Text style={styles.tabIntroText}>
-            Your bookmarked articles, videos, and podcasts
-          </Text>
-        </View>
 
-        {savedContent.length > 0 ? (
-          savedContent.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.contentCard}
-              onPress={() => setSelectedContent(item)}
-            >
-              <View style={styles.contentInfo}>
-                <View style={styles.contentHeader}>
-                  <View style={[styles.typeBadge, { backgroundColor: getTypeColor(item.type) + "20" }]}>
-                    <Ionicons name={getTypeIcon(item.type) as any} size={12} color={getTypeColor(item.type)} />
-                    <Text style={[styles.typeBadgeText, { color: getTypeColor(item.type) }]}>{item.type}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => toggleSaveItem(item.id)}>
-                    <Ionicons name="trash-outline" size={20} color={colors.error} />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.contentTitle}>{item.title}</Text>
-                <Text style={styles.contentExcerpt} numberOfLines={2}>{item.excerpt}</Text>
-              </View>
-            </TouchableOpacity>
-          ))
-        ) : (
-          <View style={styles.emptyState}>
-            <Ionicons name="bookmark-outline" size={64} color={colors.border} />
-            <Text style={styles.emptyStateText}>No saved content yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Tap the bookmark icon on any content to save it here
-            </Text>
-          </View>
-        )}
-      </>
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading Islamic content...</Text>
+        </View>
+      </SafeAreaView>
     );
-  };
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1247,11 +1017,7 @@ export default function ContentScreen() {
             <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
               {tab.label}
             </Text>
-            {tab.key === "saved" && savedItems.length > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{savedItems.length}</Text>
-              </View>
-            )}
+
           </TouchableOpacity>
         ))}
       </View>
@@ -1261,59 +1027,9 @@ export default function ContentScreen() {
         {activeTab === "videos" && renderVideosTab()}
         {activeTab === "hadiths" && renderHadithsTab()}
         {activeTab === "duas" && renderDuasTab()}
-        {activeTab === "saved" && renderSavedTab()}
-        
+
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
-
-      {/* Content Detail Modal */}
-      <Modal
-        visible={selectedContent !== null}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedContent(null)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setSelectedContent(null)}>
-              <Ionicons name="close" size={28} color={colors.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => selectedContent && toggleSaveItem(selectedContent.id)}>
-              <Ionicons 
-                name={selectedContent && savedItems.includes(selectedContent.id) ? "bookmark" : "bookmark-outline"} 
-                size={24} 
-                color={colors.secondary} 
-              />
-            </TouchableOpacity>
-          </View>
-          {selectedContent && (
-            <ScrollView style={styles.modalContent}>
-              <View style={[styles.typeBadge, { backgroundColor: getTypeColor(selectedContent.type) + "20", alignSelf: "flex-start" }]}>
-                <Ionicons name={getTypeIcon(selectedContent.type) as any} size={14} color={getTypeColor(selectedContent.type)} />
-                <Text style={[styles.typeBadgeText, { color: getTypeColor(selectedContent.type) }]}>{selectedContent.type}</Text>
-              </View>
-              <Text style={styles.modalTitle}>{selectedContent.title}</Text>
-              <View style={styles.modalMeta}>
-                <Text style={styles.modalAuthor}>By {selectedContent.author}</Text>
-                <Text style={styles.modalDuration}>{selectedContent.readTime || selectedContent.duration}</Text>
-              </View>
-              <Text style={styles.modalBody}>
-                {selectedContent.content || selectedContent.excerpt}
-                {"\n\n"}
-                {selectedContent.type === "video" && "This video content will be available in the full app with video player integration."}
-                {selectedContent.type === "podcast" && "This podcast episode will be available in the full app with audio player integration."}
-              </Text>
-              <View style={styles.modalTags}>
-                {selectedContent.tags.map((tag, i) => (
-                  <View key={i} style={styles.modalTag}>
-                    <Text style={styles.modalTagText}>#{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
-          )}
-        </SafeAreaView>
-      </Modal>
 
       {/* Dua Detail Modal */}
       <Modal
@@ -1351,6 +1067,13 @@ export default function ContentScreen() {
                 <Text style={styles.duaTranslation}>{selectedDua.translation}</Text>
               </View>
               
+              {selectedDua.reference && (
+                <View style={styles.duaSection}>
+                  <Text style={styles.duaSectionLabel}>Reference</Text>
+                  <Text style={styles.duaTranslation}>{selectedDua.reference}</Text>
+                </View>
+              )}
+              
               <View style={styles.duaBenefitsSection}>
                 <Text style={styles.duaSectionLabel}>Benefits</Text>
                 {selectedDua.benefits.map((benefit, i) => (
@@ -1377,13 +1100,6 @@ export default function ContentScreen() {
             <TouchableOpacity onPress={() => setSelectedBlogPost(null)}>
               <Ionicons name="close" size={28} color={colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => selectedBlogPost && toggleSaveItem(selectedBlogPost.id)}>
-              <Ionicons 
-                name={selectedBlogPost && savedItems.includes(selectedBlogPost.id) ? "bookmark" : "bookmark-outline"} 
-                size={24} 
-                color={selectedBlogPost && savedItems.includes(selectedBlogPost.id) ? colors.secondary : colors.text} 
-              />
-            </TouchableOpacity>
           </View>
           {selectedBlogPost && (
             <ScrollView style={styles.modalContent}>
@@ -1404,8 +1120,8 @@ export default function ContentScreen() {
               </View>
               
               <View style={styles.blogModalTags}>
-                {selectedBlogPost.tags.map((tag) => (
-                  <View key={tag} style={styles.blogModalTag}>
+                {selectedBlogPost.tags.map((tag, index) => (
+                  <View key={index} style={styles.blogModalTag}>
                     <Text style={styles.blogModalTagText}>#{tag}</Text>
                   </View>
                 ))}
@@ -1424,6 +1140,17 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  loadingText: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
   },
   scrollView: {
     flex: 1,
@@ -1463,58 +1190,6 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.text,
     marginLeft: spacing.sm,
-  },
-  
-  // Featured Section
-  featuredSection: {
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: typography.sizes.xl,
-    fontFamily: typography.fonts.bold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  featuredCard: {
-    width: SCREEN_WIDTH - spacing.lg * 2,
-    height: 200,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.xl,
-    marginRight: spacing.md,
-    overflow: "hidden",
-    ...shadows.md,
-  },
-  featuredGradient: {
-    flex: 1,
-    padding: spacing.lg,
-    justifyContent: "flex-end",
-  },
-  featuredTypeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-    gap: spacing.xs,
-  },
-  featuredTypeText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.semiBold,
-    color: "#FFF",
-    textTransform: "uppercase",
-  },
-  featuredTitle: {
-    fontSize: typography.sizes.xl,
-    fontFamily: typography.fonts.bold,
-    color: "#FFF",
-    marginBottom: spacing.xs,
-  },
-  featuredAuthor: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: "rgba(255,255,255,0.8)",
   },
   
   // Hadith Card
@@ -1620,6 +1295,12 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
     marginBottom: spacing.md,
   },
   seeAllText: {
@@ -1988,45 +1669,6 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.textMuted,
   },
-  moreVideosCard: {
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    alignItems: "center",
-    marginTop: spacing.lg,
-    ...shadows.sm,
-  },
-  moreVideosTitle: {
-    fontSize: typography.sizes.lg,
-    fontFamily: typography.fonts.bold,
-    color: colors.text,
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  moreVideosText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginBottom: spacing.md,
-  },
-  channelSuggestions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    justifyContent: "center",
-  },
-  channelChip: {
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  channelChipText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.medium,
-    color: colors.text,
-  },
   
   // Hadith List
   hadithListCard: {
@@ -2225,48 +1867,6 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     color: colors.text,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
-  },
-  modalMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: spacing.lg,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalAuthor: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.medium,
-    color: colors.textSecondary,
-  },
-  modalDuration: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textMuted,
-  },
-  modalBody: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.regular,
-    color: colors.text,
-    lineHeight: 24,
-  },
-  modalTags: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-  },
-  modalTag: {
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.full,
-  },
-  modalTagText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.medium,
-    color: colors.primary,
   },
   
   // Blog Modal
