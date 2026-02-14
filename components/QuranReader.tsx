@@ -566,7 +566,9 @@ export default function QuranReader({
         return bism ? <Text style={styles.bismillah}>{bism}</Text> : null;
       })()}
 
-      {(surahContent?.verses || []).filter((v) => splitBismillah(v.arabic, v.number).rest.length > 0).map((verse) => (
+      {(surahContent?.verses || []).filter((v) => splitBismillah(v.arabic, v.number).rest.length > 0).map((verse) => {
+        const isRead = !!focusInfo && focusInfo.versesRead >= verse.number;
+        return (
         <View
           key={verse.number}
           onLayout={(e) => {
@@ -575,6 +577,7 @@ export default function QuranReader({
           style={[
             styles.verseCard,
             playingVerse === verse.number && styles.verseCardPlaying,
+            isRead && { backgroundColor: colors.success + "06" }
           ]}
         >
           {/* Verse header: number + actions */}
@@ -614,15 +617,22 @@ export default function QuranReader({
             </View>
           </View>
 
-          {/* Arabic text */}
-          <Text style={styles.verseArabic}>{splitBismillah(verse.arabic, verse.number).rest}</Text>
+          {/* Arabic text (click to count in Focus Mode) */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => {
+              if (focusInfo?.lockedIn) onVerseRead?.(verse.number);
+            }}
+          >
+            <Text style={[styles.verseArabic, isRead && { opacity: 0.9 }]}>{splitBismillah(verse.arabic, verse.number).rest}</Text>
+          </TouchableOpacity>
 
           {/* Translation */}
           {showTranslation && verse.translation && (
             <Text style={styles.verseTranslation}>{verse.translation}</Text>
           )}
         </View>
-      ))}
+      )})}
 
       {/* Prev / Next */}
       <View style={styles.surahNav}>
@@ -673,33 +683,41 @@ export default function QuranReader({
         {/* Continuous Arabic text */}
         <View style={styles.mushafTextContainer}>
           <Text style={styles.mushafText}>
-            {verses.filter((v) => splitBismillah(v.arabic, v.number).rest.length > 0).map((v, i) => (
-              <React.Fragment key={v.number}>
-                <Text
-                  style={[
-                    playingVerse === v.number && {
-                      color: colors.primary,
-                      backgroundColor: colors.primary + "18",
-                      borderRadius: 6,
-                    },
-                  ]}
-                  onPress={() => {
-                    onVerseRead?.(v.number);
-                    if (playingVerse === v.number && isPlaying) {
-                      sound?.pauseAsync();
-                      setIsPlaying(false);
-                    } else {
-                      playVerse(v.number);
-                    }
-                  }}
-                >
-                  {splitBismillah(v.arabic, v.number).rest}
-                </Text>
-                <Text style={{ color: colors.secondary, fontSize: 20 }}>
-                  {" ﴿"}{convertToArabicNumeral(v.number)}{"﴾ "}
-                </Text>
-              </React.Fragment>
-            ))}
+            {verses.filter((v) => splitBismillah(v.arabic, v.number).rest.length > 0).map((v, i) => {
+              const isRead = !!focusInfo && focusInfo.versesRead >= v.number;
+              return (
+                <React.Fragment key={v.number}>
+                  <Text
+                    style={[
+                      playingVerse === v.number && {
+                        color: colors.primary,
+                        backgroundColor: colors.primary + "18",
+                        borderRadius: 6,
+                      },
+                      isRead && { opacity: 0.85, backgroundColor: colors.success + "10", borderRadius: 6 }
+                    ]}
+                    onPress={() => {
+                      // Only count verses when Focus Mode is active
+                      if (focusInfo?.lockedIn) {
+                        onVerseRead?.(v.number);
+                      }
+
+                      if (playingVerse === v.number && isPlaying) {
+                        sound?.pauseAsync();
+                        setIsPlaying(false);
+                      } else {
+                        playVerse(v.number);
+                      }
+                    }}
+                  >
+                    {splitBismillah(v.arabic, v.number).rest}
+                  </Text>
+                  <Text style={{ color: colors.secondary, fontSize: 20 }}>
+                    {" ﴿"}{convertToArabicNumeral(v.number)}{"﴾ "}
+                  </Text>
+                </React.Fragment>
+              );
+            })}
           </Text>
         </View>
 

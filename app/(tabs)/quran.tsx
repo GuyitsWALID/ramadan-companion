@@ -1322,7 +1322,7 @@ export default function QuranScreen() {
                 }}
               >
                 <Ionicons name="lock-closed" size={18} color="#FFF" />
-                <Text style={styles.lockInConfirmStartText}>Focus Mode</Text>
+                <Text style={styles.lockInConfirmStartText}>Focus</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1334,6 +1334,62 @@ export default function QuranScreen() {
                 }}
               >
                 <Text style={styles.lockInConfirmStartText}>Just Read</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Focus Target Modal (select verses target, then start Focus Mode) */}
+      <Modal
+        visible={showFocusTargetModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => { setShowFocusTargetModal(false); setPendingSurahToOpen(null); }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.lockInConfirmModal}>
+            <Ionicons name="lock-closed" size={42} color={colors.secondary} />
+            <Text style={styles.lockInConfirmTitle}>Set Focus Target</Text>
+            <Text style={styles.lockInConfirmText}>Choose how many verses you'd like to read in Focus Mode.</Text>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.md }}>
+              {[5, 10, 20, 30, 50].map((n) => (
+                <TouchableOpacity
+                  key={n}
+                  style={[
+                    styles.objectiveOption,
+                    focusTarget === n && styles.objectiveOptionActive,
+                    { minWidth: 56, alignItems: 'center' }
+                  ]}
+                  onPress={() => setFocusTarget(n)}
+                >
+                  <Text style={[styles.objectiveOptionText, focusTarget === n && styles.objectiveOptionTextActive]}>{n}</Text>
+                  <Text style={styles.objectiveOptionLabel}>verses</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg }}>
+              <TouchableOpacity
+                style={styles.lockInConfirmCancel}
+                onPress={() => { setShowFocusTargetModal(false); setPendingSurahToOpen(null); }}
+              >
+                <Text style={styles.lockInConfirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.lockInConfirmStart}
+                onPress={() => {
+                  // Start reading in Focus Mode with selected target
+                  setShowFocusTargetModal(false);
+                  const surahToOpen = pendingSurahToOpen || currentSurah;
+                  startReading(true, surahToOpen, focusTarget);
+                  setPendingSurahToOpen(null);
+                }}
+              >
+                <Ionicons name="lock-closed" size={16} color="#FFF" />
+                <Text style={styles.lockInConfirmStartText}>Start Focus</Text>
               </TouchableOpacity>
             </View>
           </View>
