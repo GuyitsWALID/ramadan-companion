@@ -55,10 +55,12 @@
       "expo-router"
     ],
     "extra": {
+      "privacyPolicyUrl": "https://ramadancompanion.app/privacy",
+      "router": {},
       "eas": {
-        "projectId": "ramadan-companion"
-      },
-      "privacyPolicyUrl": "https://ramadancompanion.app/privacy"
-    }
+        "projectId": "64d13ed1-caf3-48a7-a876-da2bfb7c5eec"
+      }
+    },
+    "owner": "underated.walid"
   }
 }
