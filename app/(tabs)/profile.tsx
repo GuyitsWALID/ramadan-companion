@@ -1,155 +1,66 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Image, Platform, Modal } from "react-native";
-import { useState, useEffect, useCallback } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform, Modal } from "react-native";
+import { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useUser } from "../../context/UserContext";
 import { useAuth } from "../../context/AuthContext";
-import { useNetwork } from "../../context/NetworkContext";
 import { useTheme } from "../../context/ThemeContext";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
-import { useNotificationManager } from "../../hooks/useNotificationManager";
-import { getCacheStats, clearAllCache } from "../../utils/cache";
-import { typography, spacing, borderRadius, shadows } from "../../constants/theme";
+import { getCalculationMethodName } from "../../utils/prayerTimes";
+import * as Location from "expo-location";
+import { typography, spacing, borderRadius } from "../../constants/theme";
 
 export default function ProfileScreen() {
-  const { user: userContextUser, settings, updateSettings, loading: userLoading } = useUser();
-  const { user: authUser, isAuthenticated, isOnboarded, signOut, updateUser } = useAuth();
-  const { prayerTimes, location: prayerLocation, prayerSettings } = usePrayerTimes();
-  const { testNotification, initializeNotifications, scheduleDailyPrayerNotifications } = useNotificationManager();
-  const { isOffline, offlineQueueSize, lastSyncTime, syncOfflineActions, syncPending } = useNetwork();
+  const { user: userContextUser, settings, updateSettings, updateLocation: updateUserLocation, loading: userLoading } = useUser();
+  const { user: authUser, isAuthenticated, signOut, updateUser } = useAuth();
+  const { prayerTimes, location: prayerLocation, prayerSettings, updateLocation: updatePrayerLocation, updatePrayerSettings } = usePrayerTimes();
   const { colors, isDark, themeMode, setThemeMode } = useTheme();
   
-  // Merge user data - auth user takes priority
   const user = authUser || userContextUser;
-  const location = authUser?.location || prayerLocation;
+  const effectiveLocation = authUser?.location ?? userContextUser?.location ?? prayerLocation;
   const loading = userLoading;
   
   const [localSettings, setLocalSettings] = useState(settings);
-  const [testingSending, setTestingSending] = useState(false);
-  const [showNotificationModal, setShowNotificationModal] = useState(false);
-  const [cacheStats, setCacheStats] = useState({ totalItems: 0, offlineQueueSize: 0, lastSync: null as string | null });
-  const [clearingCache, setClearingCache] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [showCalcModal, setShowCalcModal] = useState(false);
+  const [showMadhabModal, setShowMadhabModal] = useState(false);
+  const [tempCalcMethod, setTempCalcMethod] = useState(prayerSettings?.calculationMethod || localSettings.calculationMethod || "MuslimWorldLeague");
+  const [tempMadhab, setTempMadhab] = useState(prayerSettings?.madhab || "Shafi");
 
-  // Generate styles with current colors
   const styles = getStyles(colors);
 
-  // Load cache stats
-  const loadCacheStats = useCallback(async () => {
-    const stats = await getCacheStats();
-    setCacheStats(stats);
-  }, []);
-
-  useEffect(() => {
-    loadCacheStats();
-  }, [loadCacheStats]);
+  const formatLocationDisplay = (loc?: { latitude?: number; longitude?: number; city?: string; country?: string }) => {
+    if (!loc) return null;
+    if (loc.city) return `${loc.city}${loc.country ? `, ${loc.country}` : ''}`;
+    return `${loc.latitude?.toFixed(4)}, ${loc.longitude?.toFixed(4)}`;
+  };
 
   // Sync local settings with context
   useEffect(() => {
     setLocalSettings(settings);
   }, [settings]);
 
-  // Calculate stats from actual data
-  const completedPrayers = prayerTimes.filter(p => p.completed && p.name !== "Sunrise").length;
-  
-  const stats = [
-    {
-      title: "Today's Prayers",
-      value: `${completedPrayers}/5`,
-      icon: "time-outline",
-      color: colors.primary,
-    },
-    {
-      title: "Location",
-      value: location?.city || "Not set",
-      icon: "location-outline",
-      color: colors.success,
-    },
-    {
-      title: "Method",
-      value: (authUser?.calculationMethod || prayerSettings?.calculationMethod)?.slice(0, 10) || "Default",
-      icon: "calculator-outline",
-      color: colors.secondary,
-    },
-    {
-      title: "Quran Goal",
-      value: authUser?.quranGoal ? `${authUser.quranGoal} verses` : "Not set",
-      icon: "book-outline",
-      color: colors.primary,
-    },
-  ];
-
   const toggleSetting = async (key: keyof typeof localSettings) => {
+    setSavingSettings(true);
     const newValue = !localSettings[key];
     setLocalSettings(prev => ({ ...prev, [key]: newValue }));
     
-    // Persist to context/storage
-    await updateSettings({ [key]: newValue });
-  };
-
-  const handleTestNotification = async () => {
-    setTestingSending(true);
     try {
-      await initializeNotifications();
-      await testNotification();
-      
-      if (Platform.OS === 'web') {
-        window.alert("Test notification sent! Check your notification center.");
-      } else {
-        Alert.alert(
-          "Test Notification Sent",
-          "You should see a notification appear shortly. If not, please check your notification permissions in device settings.",
-          [{ text: "OK" }]
-        );
-      }
+      await updateSettings({ [key]: newValue });
     } catch (error) {
-      console.error("Error sending test notification:", error);
-      if (Platform.OS === 'web') {
-        window.alert("Failed to send test notification. Please check your notification permissions.");
-      } else {
-        Alert.alert(
-          "Notification Error",
-          "Failed to send test notification. Please ensure notification permissions are enabled.",
-          [{ text: "OK" }]
-        );
-      }
+      console.error("Error updating setting:", error);
+      // Revert on error
+      setLocalSettings(prev => ({ ...prev, [key]: !newValue }));
     } finally {
-      setTestingSending(false);
-    }
-  };
-
-  const handleSetupNotifications = async () => {
-    try {
-      await initializeNotifications();
-      await scheduleDailyPrayerNotifications(prayerTimes);
-      
-      if (Platform.OS === 'web') {
-        window.alert("Notifications scheduled successfully!");
-      } else {
-        Alert.alert(
-          "Notifications Scheduled",
-          "Prayer notifications have been set up based on your current prayer times.",
-          [{ text: "OK" }]
-        );
-      }
-    } catch (error) {
-      console.error("Error setting up notifications:", error);
-      if (Platform.OS === 'web') {
-        window.alert("Failed to set up notifications. Please check your permissions.");
-      } else {
-        Alert.alert(
-          "Error",
-          "Failed to set up notifications. Please check your notification permissions.",
-          [{ text: "OK" }]
-        );
-      }
+      setSavingSettings(false);
     }
   };
 
   const handleSignOut = async () => {
-    // Handle web platform where Alert.alert may not show properly
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm("Are you sure you want to sign out? You'll need to sign in again to access your data.");
+      const confirmed = window.confirm("Are you sure you want to sign out?");
       if (confirmed) {
         try {
           await signOut();
@@ -162,10 +73,9 @@ export default function ProfileScreen() {
       return;
     }
 
-    // Native platforms use Alert.alert
     Alert.alert(
       "Sign Out",
-      "Are you sure you want to sign out? You'll need to sign in again to access your data.",
+      "Are you sure you want to sign out?",
       [
         { text: "Cancel", style: "cancel" },
         { 
@@ -174,7 +84,6 @@ export default function ProfileScreen() {
           onPress: async () => {
             try {
               await signOut();
-              // NavigationGuard will automatically redirect to (auth)
             } catch (error) {
               console.error("Error signing out:", error);
               Alert.alert("Error", "Failed to sign out. Please try again.");
@@ -183,6 +92,99 @@ export default function ProfileScreen() {
         },
       ]
     );
+  };
+
+  const handleLocationSettings = async () => {
+    if (Platform.OS === 'web') {
+      window.alert("Location detection is available on mobile. Use onboarding or your browser to update location.");
+      return;
+    }
+
+    try {
+      setIsLocating(true);
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required to auto-detect your location.');
+        setIsLocating(false);
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [reverse] = await Location.reverseGeocodeAsync({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+
+      const newLoc = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        city: reverse?.city ?? reverse?.district ?? reverse?.name ?? undefined,
+        country: reverse?.country ?? undefined,
+      };
+
+      // update app prayer location
+      await updatePrayerLocation(newLoc as any);
+
+      // persist to authenticated profile (Convex) when available, else update local user context
+      if (isAuthenticated && updateUser) {
+        try {
+          await updateUser({ location: newLoc as any });
+        } catch (e) {
+          console.error("Failed to update authenticated profile location:", e);
+        }
+      } else if (updateUserLocation) {
+        try {
+          await updateUserLocation(newLoc as any);
+        } catch (e) {
+          console.error("Failed to update local user location:", e);
+        }
+      }
+
+      Alert.alert('Location updated', `${formatLocationDisplay(newLoc) || 'Your location'} set successfully.`);
+    } catch (err) {
+      console.error('Error detecting location:', err);
+      Alert.alert('Error', 'Could not detect location.');
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
+  const openCalculationMethodPicker = () => {
+    setTempCalcMethod(prayerSettings?.calculationMethod || localSettings.calculationMethod || 'MuslimWorldLeague');
+    setShowCalcModal(true);
+  };
+
+  const saveCalculationMethod = async (method: string) => {
+    setShowCalcModal(false);
+    setTempCalcMethod(method);
+
+    // update prayer settings (app) and user settings (if present)
+    try {
+      await updatePrayerSettings({ calculationMethod: method, madhab: prayerSettings?.madhab || 'Shafi' } as any);
+      try { await updateSettings({ calculationMethod: method }); } catch(e) {}
+      setLocalSettings(prev => ({ ...prev, calculationMethod: method }));
+      Alert.alert('Saved', `${getCalculationMethodName(method)} selected.`);
+    } catch (err) {
+      console.error('Error saving calculation method:', err);
+      Alert.alert('Error', 'Failed to update calculation method.');
+    }
+  };
+
+  const openMadhabPicker = () => {
+    setTempMadhab(prayerSettings?.madhab || 'Shafi');
+    setShowMadhabModal(true);
+  };
+
+  const saveMadhab = async (madhab: string) => {
+    setShowMadhabModal(false);
+    setTempMadhab(madhab);
+
+    try {
+      await updatePrayerSettings({ calculationMethod: prayerSettings?.calculationMethod || localSettings?.calculationMethod || 'MuslimWorldLeague', madhab } as any);
+      // update global prayer settings only (madhab is stored with prayer settings)
+      setLocalSettings(prev => ({ ...prev }));
+      Alert.alert('Saved', `${madhab} madhab selected.`);
+    } catch (err) {
+      console.error('Error saving madhab:', err);
+      Alert.alert('Error', 'Failed to update madhab.');
+    }
   };
 
   if (loading) {
@@ -198,57 +200,172 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        <View style={styles.header}>
-          <View style={styles.profileInfo}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "RC"}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        
+        {/* Profile Header */}
+        <View style={styles.profileHeader}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>
+              {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : "U"}
+            </Text>
+          </View>
+          <Text style={styles.userName}>{user?.name || "User"}</Text>
+          <Text style={styles.userEmail}>{user?.email ?? (isAuthenticated ? "Signed in" : "Not signed in")}</Text>
+          
+          {effectiveLocation && (
+            <View style={styles.locationBadge}>
+              <Ionicons name="location" size={14} color={colors.primary} />
+              <Text style={styles.locationText}>
+                {formatLocationDisplay(effectiveLocation)}
               </Text>
             </View>
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user?.name || "Guest User"}</Text>
-              <Text style={styles.userEmail}>{user?.email || "Not signed in"}</Text>
-              <View style={styles.locationBadge}>
-                <Ionicons name="location" size={12} color={colors.primary} />
-                <Text style={styles.userLocation}>
-                  {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Location not set"}
+          )}
+        </View>
+
+        {/* Quick Stats */}
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Ionicons name="flame" size={28} color={colors.warning} />
+            <Text style={styles.statValue}>
+              {prayerTimes.filter(p => p.completed && p.name !== "Sunrise").length}/5
+            </Text>
+            <Text style={styles.statLabel}>Today's Prayers</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <Ionicons name="book" size={28} color={colors.success} />
+            <Text style={styles.statValue}>
+              {authUser?.quranGoal || "0"}
+            </Text>
+            <Text style={styles.statLabel}>Daily Goal</Text>
+          </View>
+          
+          <View style={styles.statCard}>
+            <Ionicons name="calendar" size={28} color={colors.secondary} />
+            <Text style={styles.statValue}>30</Text>
+            <Text style={styles.statLabel}>Ramadan Days</Text>
+          </View>
+        </View>
+
+        {/* Prayer Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Prayer Settings</Text>
+          
+          <TouchableOpacity 
+            style={styles.settingRow}
+            onPress={handleLocationSettings}
+            disabled={isLocating}
+          >
+            <View style={styles.settingLeft}>
+              <Ionicons name="location-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingName}>Location</Text>
+                <Text style={styles.settingValue}>
+                  {effectiveLocation ? formatLocationDisplay(effectiveLocation) : "Not set"}
                 </Text>
               </View>
             </View>
-          </View>
-          
-          {/* Membership badge */}
-          {isAuthenticated && isOnboarded && (
-            <View style={styles.membershipBadge}>
-              <Ionicons name="checkmark-shield" size={16} color={colors.success} />
-              <Text style={styles.membershipText}>Premium Member</Text>
+            {isLocating ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.settingRow}
+            onPress={openCalculationMethodPicker}
+          >
+            <View style={styles.settingLeft}>
+              <Ionicons name="calculator-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingName}>Calculation Method</Text>
+                <Text style={styles.settingValue}>
+                  { (authUser?.calculationMethod || prayerSettings?.calculationMethod) ? (getCalculationMethodName(authUser?.calculationMethod || prayerSettings?.calculationMethod || 'MuslimWorldLeague')) : 'Muslim World League'}
+                </Text>
+              </View>
             </View>
-          )}
-          
-          {/* Sign out button - always show when authenticated since auth is required */}
-          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={20} color={colors.primary} />
-            <Text style={styles.signOutButtonText}>Sign Out</Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingRow} onPress={openMadhabPicker}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="moon-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingName}>Madhab</Text>
+                <Text style={styles.settingValue}>
+                  {authUser?.madhab || (prayerSettings?.madhab ? prayerSettings.madhab : "Shafi")}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.statsContainer}>
-          {stats.map((stat, index) => (
-            <View key={index} style={styles.statCard}>
-              <Ionicons name={stat.icon as any} size={24} color={stat.color} />
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statTitle}>{stat.title}</Text>
+        {/* Calculation Method Picker Modal */}
+        <Modal visible={showCalcModal} transparent animationType="fade" onRequestClose={() => setShowCalcModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Calculation Method</Text>
+              {[
+                'MuslimWorldLeague','UmmAlQura','NorthAmerica','Dubai','MoonsightingCommittee','Kuwait','Qatar','Singapore'
+              ].map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.modalOption, tempCalcMethod === m && styles.modalOptionActive]}
+                  onPress={() => setTempCalcMethod(m)}
+                >
+                  <View style={styles.modalOptionInfo}>
+                    <Text style={styles.modalOptionTitle}>{getCalculationMethodName(m)}</Text>
+                    <Text style={styles.modalOptionDesc}>{m}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+                <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowCalcModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSaveButton} onPress={() => saveCalculationMethod(tempCalcMethod)}>
+                  <Text style={styles.modalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          ))}
-        </View>
+          </View>
+        </Modal>
 
+        {/* Madhab Picker Modal */}
+        <Modal visible={showMadhabModal} transparent animationType="fade" onRequestClose={() => setShowMadhabModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Select Madhab</Text>
+              {['Shafi','Hanafi'].map((m) => (
+                <TouchableOpacity key={m} style={[styles.modalOption, tempMadhab === m && styles.modalOptionActive]} onPress={() => setTempMadhab(m)}>
+                  <View style={styles.modalOptionInfo}>
+                    <Text style={styles.modalOptionTitle}>{m}</Text>
+                    <Text style={styles.modalOptionDesc}>{m === 'Shafi' ? "Standard (default)" : "Hanafi (for Asr)"}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md }}>
+                <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowMadhabModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalSaveButton} onPress={() => saveMadhab(tempMadhab)}>
+                  <Text style={styles.modalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Notifications */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Notifications</Text>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
+          
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="notifications-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
                 <Text style={styles.settingName}>Prayer Reminders</Text>
                 <Text style={styles.settingDescription}>Get notified for each prayer</Text>
               </View>
@@ -256,107 +373,72 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.prayerReminders}
               onValueChange={() => toggleSetting('prayerReminders')}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              trackColor={{ false: colors.border, true: colors.primary + "50" }}
               thumbColor={localSettings.prayerReminders ? colors.primary : colors.surfaceElevated}
+              disabled={savingSettings}
             />
           </View>
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="book-outline" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
-                <Text style={styles.settingName}>Quran Reading Reminders</Text>
-                <Text style={styles.settingDescription}>Daily Quran reading notifications</Text>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="book-outline" size={22} color={colors.success} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingName}>Quran Reminders</Text>
+                <Text style={styles.settingDescription}>Daily reading notifications</Text>
               </View>
             </View>
             <Switch
               value={localSettings.quranReminders}
               onValueChange={() => toggleSetting('quranReminders')}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={localSettings.quranReminders ? colors.primary : colors.surfaceElevated}
+              trackColor={{ false: colors.border, true: colors.success + "50" }}
+              thumbColor={localSettings.quranReminders ? colors.success : colors.surfaceElevated}
+              disabled={savingSettings}
             />
           </View>
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="calendar-outline" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
-                <Text style={styles.settingName}>Ramadan Special</Text>
-                <Text style={styles.settingDescription}>Sehri and Iftar reminders</Text>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="restaurant-outline" size={22} color={colors.secondary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingName}>Ramadan Reminders</Text>
+                <Text style={styles.settingDescription}>Sehri and Iftar alerts</Text>
               </View>
             </View>
             <Switch
               value={localSettings.ramadanReminders}
               onValueChange={() => toggleSetting('ramadanReminders')}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
-              thumbColor={localSettings.ramadanReminders ? colors.primary : colors.surfaceElevated}
+              trackColor={{ false: colors.border, true: colors.secondary + "50" }}
+              thumbColor={localSettings.ramadanReminders ? colors.secondary : colors.surfaceElevated}
+              disabled={savingSettings}
             />
           </View>
-
-          {/* Notification Action Buttons */}
-          <View style={styles.notificationActions}>
-            <TouchableOpacity 
-              style={styles.notificationActionButton}
-              onPress={handleSetupNotifications}
-            >
-              <Ionicons name="alarm-outline" size={20} color={colors.primary} />
-              <Text style={styles.notificationActionText}>Schedule Notifications</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.notificationActionButton, testingSending && styles.notificationActionButtonDisabled]}
-              onPress={handleTestNotification}
-              disabled={testingSending}
-            >
-              {testingSending ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Ionicons name="paper-plane-outline" size={20} color={colors.primary} />
-              )}
-              <Text style={styles.notificationActionText}>
-                {testingSending ? "Sending..." : "Test Notification"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Notification Schedule Info */}
-          <TouchableOpacity 
-            style={styles.notificationInfoCard}
-            onPress={() => setShowNotificationModal(true)}
-          >
-            <View style={styles.notificationInfoHeader}>
-              <Ionicons name="information-circle-outline" size={20} color={colors.secondary} />
-              <Text style={styles.notificationInfoTitle}>Scheduled Notifications</Text>
-              <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-            </View>
-            <Text style={styles.notificationInfoText}>
-              Tap to view your notification schedule
-            </Text>
-          </TouchableOpacity>
         </View>
 
+        {/* Sound & Haptics */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sound & Haptics</Text>
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="volume-high-outline" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
+          
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="volume-high-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
                 <Text style={styles.settingName}>Adhan Sound</Text>
-                <Text style={styles.settingDescription}>Play Adhan for prayer times</Text>
+                <Text style={styles.settingDescription}>Play at prayer times</Text>
               </View>
             </View>
             <Switch
               value={localSettings.soundEnabled}
               onValueChange={() => toggleSetting('soundEnabled')}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              trackColor={{ false: colors.border, true: colors.primary + "50" }}
               thumbColor={localSettings.soundEnabled ? colors.primary : colors.surfaceElevated}
+              disabled={savingSettings}
             />
           </View>
 
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="phone-portrait-outline" size={24} color={colors.primary} />
-              <View style={styles.settingText}>
+          <View style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="phone-portrait-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
                 <Text style={styles.settingName}>Vibration</Text>
                 <Text style={styles.settingDescription}>Vibrate on notifications</Text>
               </View>
@@ -364,390 +446,192 @@ export default function ProfileScreen() {
             <Switch
               value={localSettings.vibrationEnabled}
               onValueChange={() => toggleSetting('vibrationEnabled')}
-              trackColor={{ false: colors.border, true: colors.primaryLight }}
+              trackColor={{ false: colors.border, true: colors.primary + "50" }}
               thumbColor={localSettings.vibrationEnabled ? colors.primary : colors.surfaceElevated}
+              disabled={savingSettings}
             />
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>App Settings</Text>
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="location-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Location</Text>
-              <Text style={styles.menuValue}>
-                {location?.city ? `${location.city}${location.country ? `, ${location.country}` : ""}` : "Tap to set"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="language-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Language</Text>
-              <Text style={styles.menuValue}>{localSettings.language || "English"}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="calculate-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Calculation Method</Text>
-              <Text style={styles.menuValue}>{authUser?.calculationMethod || prayerSettings?.calculationMethod || "Muslim World League"}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="moon-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Madhab (Asr Calculation)</Text>
-              <Text style={styles.menuValue}>{authUser?.madhab === "Hanafi" ? "Hanafi" : "Shafi'i"}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => router.push("/widgets")}
-          >
-            <Ionicons name="apps-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Home Screen Widgets</Text>
-              <Text style={styles.menuValue}>Configure widgets</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Theme Section */}
+        {/* Appearance */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Appearance</Text>
-          <View style={styles.themeContainer}>
-            <Text style={styles.themeLabel}>Theme Mode</Text>
-            <View style={styles.themeOptions}>
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  themeMode === "light" && styles.themeOptionActive,
-                ]}
-                onPress={() => setThemeMode("light")}
-              >
-                <Ionicons 
-                  name="sunny-outline" 
-                  size={20} 
-                  color={themeMode === "light" ? colors.primary : colors.textSecondary} 
-                />
-                <Text style={[
-                  styles.themeOptionText,
-                  themeMode === "light" && styles.themeOptionTextActive,
-                ]}>
-                  Light
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  themeMode === "dark" && styles.themeOptionActive,
-                ]}
-                onPress={() => setThemeMode("dark")}
-              >
-                <Ionicons 
-                  name="moon-outline" 
-                  size={20} 
-                  color={themeMode === "dark" ? colors.primary : colors.textSecondary} 
-                />
-                <Text style={[
-                  styles.themeOptionText,
-                  themeMode === "dark" && styles.themeOptionTextActive,
-                ]}>
-                  Dark
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  themeMode === "system" && styles.themeOptionActive,
-                ]}
-                onPress={() => setThemeMode("system")}
-              >
-                <Ionicons 
-                  name="phone-portrait-outline" 
-                  size={20} 
-                  color={themeMode === "system" ? colors.primary : colors.textSecondary} 
-                />
-                <Text style={[
-                  styles.themeOptionText,
-                  themeMode === "system" && styles.themeOptionTextActive,
-                ]}>
-                  System
-                </Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.themeHint}>
-              {themeMode === "system" 
-                ? `Following system preference (${isDark ? "Dark" : "Light"})` 
-                : `Using ${themeMode} mode`}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Support</Text>
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="help-circle-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Help & Support</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.menuItem}
-            onPress={() => router.push("/support")}
-          >
-            <Ionicons name="heart-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Support the App</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.menuItem}>
-            <Ionicons name="information-circle-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>About</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Data & Storage Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Data & Storage</Text>
           
-          {/* Connection Status */}
-          <View style={styles.connectionStatusCard}>
-            <View style={styles.connectionStatusRow}>
-              <Ionicons 
-                name={isOffline ? "cloud-offline-outline" : "cloud-done-outline"} 
-                size={24} 
-                color={isOffline ? colors.warning : colors.success} 
-              />
-              <View style={styles.connectionStatusText}>
-                <Text style={styles.connectionStatusTitle}>
-                  {isOffline ? "Offline Mode" : "Connected"}
-                </Text>
-                <Text style={styles.connectionStatusSubtitle}>
-                  {isOffline 
-                    ? `${offlineQueueSize} action${offlineQueueSize !== 1 ? 's' : ''} pending sync`
-                    : lastSyncTime || "All data synced"
-                  }
-                </Text>
-              </View>
-              {isOffline && offlineQueueSize > 0 && !syncPending && (
-                <TouchableOpacity 
-                  style={styles.syncNowButton}
-                  onPress={syncOfflineActions}
-                >
-                  <Text style={styles.syncNowButtonText}>Sync Now</Text>
-                </TouchableOpacity>
-              )}
-              {syncPending && (
-                <ActivityIndicator size="small" color={colors.primary} />
-              )}
-            </View>
-          </View>
-
-          {/* Cache Stats */}
-          <View style={styles.menuItem}>
-            <Ionicons name="server-outline" size={24} color={colors.primary} />
-            <View style={styles.menuText}>
-              <Text style={styles.menuTitle}>Cached Items</Text>
-              <Text style={styles.menuValue}>{cacheStats.totalItems} items stored locally</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.menuItem, clearingCache && styles.menuItemDisabled]}
-            onPress={async () => {
-              if (Platform.OS === 'web') {
-                const confirmed = window.confirm("This will clear all cached data. Your preferences and synced data will be reloaded from the server. Continue?");
-                if (confirmed) {
-                  setClearingCache(true);
-                  await clearAllCache();
-                  await loadCacheStats();
-                  setClearingCache(false);
-                  window.alert("Cache cleared successfully!");
-                }
-              } else {
-                Alert.alert(
-                  "Clear Cache",
-                  "This will clear all cached data. Your preferences and synced data will be reloaded from the server.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    { 
-                      text: "Clear Cache", 
-                      style: "destructive",
-                      onPress: async () => {
-                        setClearingCache(true);
-                        await clearAllCache();
-                        await loadCacheStats();
-                        setClearingCache(false);
-                        Alert.alert("Success", "Cache cleared successfully!");
-                      }
-                    }
-                  ]
-                );
-              }
-            }}
-            disabled={clearingCache}
-          >
-            <Ionicons name="trash-outline" size={24} color={colors.error} />
-            <View style={styles.menuText}>
-              <Text style={[styles.menuTitle, { color: colors.error }]}>Clear Cache</Text>
-              <Text style={styles.menuValue}>Free up local storage</Text>
-            </View>
-            {clearingCache ? (
-              <ActivityIndicator size="small" color={colors.error} />
-            ) : (
-              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Notification Schedule Modal */}
-      <Modal
-        visible={showNotificationModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowNotificationModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notification Schedule</Text>
-              <TouchableOpacity onPress={() => setShowNotificationModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody}>
-              {/* Prayer Notifications */}
-              <View style={styles.scheduleSection}>
-                <View style={styles.scheduleSectionHeader}>
-                  <Ionicons name="time-outline" size={20} color={colors.primary} />
-                  <Text style={styles.scheduleSectionTitle}>Prayer Notifications</Text>
-                </View>
-                <View style={styles.scheduleItem}>
-                  <View style={[styles.statusDot, localSettings.prayerReminders ? styles.statusActive : styles.statusInactive]} />
-                  <Text style={styles.scheduleText}>
-                    {localSettings.prayerReminders ? "Enabled" : "Disabled"}
-                  </Text>
-                </View>
-                {localSettings.prayerReminders && prayerTimes.filter(p => p.name !== "Sunrise").map((prayer, index) => (
-                  <View key={index} style={styles.scheduleSubItem}>
-                    <Text style={styles.scheduleSubText}>{prayer.name}</Text>
-                    <Text style={styles.scheduleTime}>{prayer.time}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Quran Reminders */}
-              <View style={styles.scheduleSection}>
-                <View style={styles.scheduleSectionHeader}>
-                  <Ionicons name="book-outline" size={20} color={colors.secondary} />
-                  <Text style={styles.scheduleSectionTitle}>Quran Reading Reminder</Text>
-                </View>
-                <View style={styles.scheduleItem}>
-                  <View style={[styles.statusDot, localSettings.quranReminders ? styles.statusActive : styles.statusInactive]} />
-                  <Text style={styles.scheduleText}>
-                    {localSettings.quranReminders ? "Daily at your preferred time" : "Disabled"}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Ramadan Special */}
-              <View style={styles.scheduleSection}>
-                <View style={styles.scheduleSectionHeader}>
-                  <Ionicons name="moon-outline" size={20} color={colors.primary} />
-                  <Text style={styles.scheduleSectionTitle}>Ramadan Special</Text>
-                </View>
-                <View style={styles.scheduleItem}>
-                  <View style={[styles.statusDot, localSettings.ramadanReminders ? styles.statusActive : styles.statusInactive]} />
-                  <Text style={styles.scheduleText}>
-                    {localSettings.ramadanReminders ? "Enabled" : "Disabled"}
-                  </Text>
-                </View>
-                {localSettings.ramadanReminders && (
-                  <>
-                    <View style={styles.scheduleSubItem}>
-                      <Text style={styles.scheduleSubText}>Sehri Reminder</Text>
-                      <Text style={styles.scheduleTime}>30 min before Fajr</Text>
-                    </View>
-                    <View style={styles.scheduleSubItem}>
-                      <Text style={styles.scheduleSubText}>Iftar Reminder</Text>
-                      <Text style={styles.scheduleTime}>15 min before Maghrib</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-
-              {/* Sound & Vibration Info */}
-              <View style={styles.scheduleSection}>
-                <View style={styles.scheduleSectionHeader}>
-                  <Ionicons name="volume-medium-outline" size={20} color={colors.primary} />
-                  <Text style={styles.scheduleSectionTitle}>Sound & Vibration</Text>
-                </View>
-                <View style={styles.scheduleItem}>
-                  <View style={[styles.statusDot, localSettings.soundEnabled ? styles.statusActive : styles.statusInactive]} />
-                  <Text style={styles.scheduleText}>
-                    Adhan Sound: {localSettings.soundEnabled ? "On" : "Off"}
-                  </Text>
-                </View>
-                <View style={styles.scheduleItem}>
-                  <View style={[styles.statusDot, localSettings.vibrationEnabled ? styles.statusActive : styles.statusInactive]} />
-                  <Text style={styles.scheduleText}>
-                    Vibration: {localSettings.vibrationEnabled ? "On" : "Off"}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Tips */}
-              <View style={styles.notificationTips}>
-                <Ionicons name="bulb-outline" size={20} color={colors.secondary} />
-                <View style={styles.tipsContent}>
-                  <Text style={styles.tipsTitle}>Tips</Text>
-                  <Text style={styles.tipsText}>
-                    • Notifications are scheduled based on your current prayer times{"\n"}
-                    • Make sure your location is correctly set for accurate times{"\n"}
-                    • Keep the app installed to receive notifications{"\n"}
-                    • Check device settings if notifications aren't appearing
-                  </Text>
-                </View>
-              </View>
-            </ScrollView>
-
-            <TouchableOpacity 
-              style={styles.modalCloseButton}
-              onPress={() => setShowNotificationModal(false)}
+          <View style={styles.themeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                themeMode === "light" && styles.themeOptionActive,
+              ]}
+              onPress={() => setThemeMode("light")}
             >
-              <Text style={styles.modalCloseButtonText}>Close</Text>
+              <Ionicons 
+                name="sunny" 
+                size={24} 
+                color={themeMode === "light" ? colors.primary : colors.textMuted} 
+              />
+              <Text style={[
+                styles.themeOptionText,
+                themeMode === "light" && styles.themeOptionTextActive,
+              ]}>
+                Light
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                themeMode === "dark" && styles.themeOptionActive,
+              ]}
+              onPress={() => setThemeMode("dark")}
+            >
+              <Ionicons 
+                name="moon" 
+                size={24} 
+                color={themeMode === "dark" ? colors.primary : colors.textMuted} 
+              />
+              <Text style={[
+                styles.themeOptionText,
+                themeMode === "dark" && styles.themeOptionTextActive,
+              ]}>
+                Dark
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.themeOption,
+                themeMode === "system" && styles.themeOptionActive,
+              ]}
+              onPress={() => setThemeMode("system")}
+            >
+              <Ionicons 
+                name="phone-portrait" 
+                size={24} 
+                color={themeMode === "system" ? colors.primary : colors.textMuted} 
+              />
+              <Text style={[
+                styles.themeOptionText,
+                themeMode === "system" && styles.themeOptionTextActive,
+              ]}>
+                System
+              </Text>
             </TouchableOpacity>
           </View>
+          
+          <Text style={styles.themeHint}>
+            {themeMode === "system" 
+              ? `Following system (${isDark ? "Dark" : "Light"})` 
+              : `Using ${themeMode} mode`}
+          </Text>
         </View>
-      </Modal>
+
+        {/* App Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App Settings</Text>
+          
+          <TouchableOpacity style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="language-outline" size={22} color={colors.primary} />
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingName}>Language</Text>
+                <Text style={styles.settingValue}>
+                  {localSettings.language || "English"}
+                </Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          {Platform.OS !== 'web' && (
+            <TouchableOpacity 
+              style={styles.settingRow}
+              onPress={() => router.push("/widgets")}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons name="apps-outline" size={22} color={colors.primary} />
+                <View style={styles.settingInfo}>
+                  <Text style={styles.settingName}>Home Screen Widgets</Text>
+                  <Text style={styles.settingValue}>Configure widgets</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Support */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Support</Text>
+          
+          <TouchableOpacity style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="help-circle-outline" size={22} color={colors.primary} />
+              <Text style={styles.settingName}>Help & Support</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.settingRow}
+            onPress={() => router.push("/support")}
+          >
+            <View style={styles.settingLeft}>
+              <Ionicons name="heart-outline" size={22} color={colors.error} />
+              <Text style={styles.settingName}>Support the App</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="star-outline" size={22} color={colors.warning} />
+              <Text style={styles.settingName}>Rate Us</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="share-social-outline" size={22} color={colors.primary} />
+              <Text style={styles.settingName}>Share App</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.settingRow}>
+            <View style={styles.settingLeft}>
+              <Ionicons name="information-circle-outline" size={22} color={colors.primary} />
+              <Text style={styles.settingName}>About</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Account Actions */}
+        <View style={styles.section}>
+          <TouchableOpacity 
+            style={styles.dangerButton}
+            onPress={handleSignOut}
+          >
+            <Ionicons name="log-out-outline" size={22} color={colors.error} />
+            <Text style={styles.dangerButtonText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* App Version */}
+        <View style={styles.versionContainer}>
+          <Text style={styles.versionText}>Ramadan Companion</Text>
+          <Text style={styles.versionNumber}>Version 1.0.0</Text>
+          <Text style={styles.copyright}>© 2026 Ramadan Companion</Text>
+        </View>
+
+        <View style={{ height: spacing.xxxl }} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-// Dynamic styles based on theme colors
 const getStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
@@ -755,91 +639,6 @@ const getStyles = (colors: any) => StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    padding: spacing.lg,
-  },
-  header: {
-    marginBottom: spacing.xl,
-  },
-  profileInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    ...shadows.md,
-  },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.primary,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: spacing.lg,
-  },
-  avatarText: {
-    fontSize: typography.sizes.xxl,
-    fontFamily: typography.fonts.bold,
-    color: colors.textOnPrimary,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: typography.sizes.xl,
-    fontFamily: typography.fonts.bold,
-    color: colors.text,
-    marginBottom: spacing.xxs,
-  },
-  userEmail: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-    marginBottom: spacing.xxs,
-  },
-  locationBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xxs,
-    marginTop: spacing.xxs,
-  },
-  userLocation: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.medium,
-    color: colors.primary,
-  },
-  membershipBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: spacing.xs,
-    backgroundColor: colors.success + "15",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    marginTop: spacing.md,
-  },
-  membershipText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.success,
-  },
-  signOutButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  signOutButtonText: {
-    color: colors.primary,
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.semiBold,
   },
   loadingContainer: {
     flex: 1,
@@ -852,20 +651,73 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
   },
-  statsContainer: {
+
+  // Profile Header
+  profileHeader: {
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  avatarText: {
+    fontSize: typography.sizes.xxxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.textOnPrimary,
+  },
+  userName: {
+    fontSize: typography.sizes.xxl,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  userEmail: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
+  },
+  locationBadge: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.primary + "15",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+  },
+  locationText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.medium,
+    color: colors.primary,
+  },
+
+  // Stats Grid
+  statsGrid: {
+    flexDirection: "row",
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
     marginBottom: spacing.xl,
   },
   statCard: {
-    width: "48%",
+    flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.lg,
     padding: spacing.lg,
     alignItems: "center",
-    marginBottom: spacing.sm,
-    ...shadows.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   statValue: {
     fontSize: typography.sizes.xl,
@@ -873,331 +725,165 @@ const getStyles = (colors: any) => StyleSheet.create({
     color: colors.text,
     marginVertical: spacing.sm,
   },
-  statTitle: {
+  statLabel: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     textAlign: "center",
   },
+
+  // Section
   section: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.xxs,
+    marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    ...shadows.md,
+    borderRadius: borderRadius.lg,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sectionTitle: {
-    fontSize: typography.sizes.lg,
-    fontFamily: typography.fonts.semiBold,
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.bold,
     color: colors.text,
-    padding: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  settingItem: {
+
+  // Setting Row
+  settingRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  settingInfo: {
+  settingLeft: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    gap: spacing.md,
   },
-  settingText: {
-    marginLeft: spacing.lg,
+  settingInfo: {
     flex: 1,
   },
   settingName: {
     fontSize: typography.sizes.md,
     fontFamily: typography.fonts.semiBold,
     color: colors.text,
-    marginBottom: spacing.xxs,
   },
   settingDescription: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  menuText: {
-    marginLeft: spacing.lg,
-    flex: 1,
-  },
-  menuTitle: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-    marginBottom: spacing.xxs,
-  },
-  menuValue: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-  },
-  // Notification Action Styles
-  notificationActions: {
-    flexDirection: "row",
-    padding: spacing.lg,
-    gap: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  notificationActionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    backgroundColor: colors.primaryLight,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.md,
-  },
-  notificationActionButtonDisabled: {
-    opacity: 0.6,
-  },
-  notificationActionText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.medium,
-    color: colors.primary,
-  },
-  notificationInfoCard: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.secondary + "15",
-    borderRadius: borderRadius.md,
-  },
-  notificationInfoHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-  },
-  notificationInfoTitle: {
-    flex: 1,
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-  },
-  notificationInfoText: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-    marginTop: spacing.xs,
-    marginLeft: 28,
+    color: colors.textMuted,
+    marginTop: spacing.xxs,
   },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: borderRadius.xl,
-    borderTopRightRadius: borderRadius.xl,
-    maxHeight: "80%",
-    paddingBottom: spacing.xl,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalTitle: {
-    fontSize: typography.sizes.lg,
-    fontFamily: typography.fonts.bold,
-    color: colors.text,
-  },
-  modalBody: {
-    padding: spacing.lg,
-  },
-  scheduleSection: {
-    marginBottom: spacing.xl,
-  },
-  scheduleSectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  scheduleSectionTitle: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-  },
-  scheduleItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusActive: {
-    backgroundColor: colors.success,
-  },
-  statusInactive: {
-    backgroundColor: colors.textMuted,
-  },
-  scheduleText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.text,
-  },
-  scheduleSubItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: spacing.xs,
-    paddingLeft: spacing.xl,
-    borderLeftWidth: 2,
-    borderLeftColor: colors.border,
-    marginLeft: 3,
-  },
-  scheduleSubText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-  },
-  scheduleTime: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.medium,
-    color: colors.primary,
-  },
-  notificationTips: {
-    flexDirection: "row",
-    gap: spacing.md,
-    backgroundColor: colors.secondary + "10",
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.md,
-  },
-  tipsContent: {
-    flex: 1,
-  },
-  tipsTitle: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  tipsText: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
-  modalCloseButton: {
-    marginHorizontal: spacing.lg,
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: borderRadius.md,
-    alignItems: "center",
-  },
-  modalCloseButtonText: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.textOnPrimary,
-  },
-  // Data & Storage styles
-  connectionStatusCard: {
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  connectionStatusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  connectionStatusText: {
-    flex: 1,
-  },
-  connectionStatusTitle: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-  },
-  connectionStatusSubtitle: {
+  settingValue: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
     marginTop: spacing.xxs,
   },
-  syncNowButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.md,
-  },
-  syncNowButtonText: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.medium,
-    color: colors.textOnPrimary,
-  },
-  menuItemDisabled: {
-    opacity: 0.5,
-  },
-  // Theme styles
-  themeContainer: {
-    padding: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  themeLabel: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.text,
-    marginBottom: spacing.md,
-  },
-  themeOptions: {
+
+  // Theme Selector
+  themeSelector: {
     flexDirection: "row",
     gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
   },
+
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: spacing.lg },
+  modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, width: '100%', maxWidth: 480 },
+  modalTitle: { fontSize: typography.sizes.lg, fontFamily: typography.fonts.bold, color: colors.text, marginBottom: spacing.md, textAlign: 'center' },
+  modalOption: { padding: spacing.md, borderRadius: borderRadius.md, backgroundColor: colors.background, marginBottom: spacing.sm, flexDirection: 'row', alignItems: 'center' },
+  modalOptionActive: { borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primary + '08' },
+  modalOptionInfo: { flex: 1 },
+  modalOptionTitle: { fontSize: typography.sizes.md, fontFamily: typography.fonts.semiBold, color: colors.text },
+  modalOptionDesc: { fontSize: typography.sizes.xs, fontFamily: typography.fonts.regular, color: colors.textMuted, marginTop: spacing.xxs },
+  modalCancelButton: { flex: 1, paddingVertical: spacing.md, alignItems: 'center', borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.border, marginRight: spacing.sm },
+  modalCancelText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.medium, color: colors.textMuted },
+  modalSaveButton: { flex: 1, paddingVertical: spacing.md, alignItems: 'center', borderRadius: borderRadius.md, backgroundColor: colors.primary },
+  modalSaveText: { fontSize: typography.sizes.md, fontFamily: typography.fonts.semiBold, color: colors.textOnPrimary },
   themeOption: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.xs,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     borderRadius: borderRadius.md,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
   },
   themeOptionActive: {
     borderColor: colors.primary,
-    backgroundColor: colors.primaryLight + "20",
+    backgroundColor: colors.primary + "15",
   },
   themeOptionText: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.medium,
-    color: colors.textSecondary,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
   },
   themeOptionTextActive: {
     color: colors.primary,
+    fontFamily: typography.fonts.semiBold,
   },
   themeHint: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.regular,
     color: colors.textMuted,
     textAlign: "center",
-    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
+  },
+
+  // Danger Button
+  dangerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    margin: spacing.lg,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+    borderColor: colors.error,
+    backgroundColor: colors.error + "10",
+  },
+  dangerButtonText: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.error,
+  },
+
+  // Version
+  versionContainer: {
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  versionText: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.xs,
+  },
+  versionNumber: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  copyright: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
   },
 });

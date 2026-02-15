@@ -1,11 +1,10 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Modal, Platform } from "react-native";
 import { useEffect, useState, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
-import { useNotificationManager } from "../../hooks/useNotificationManager";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { typography, spacing, borderRadius } from "../../constants/theme";
@@ -13,8 +12,18 @@ import QiblaCompass from "../../components/QiblaCompass";
 
 type TabType = "prayers" | "qibla" | "stats";
 
+const ADHAN_OPTIONS = [
+  { label: "Makkah", value: "makkah" },
+  { label: "Madinah", value: "madinah" },
+  { label: "Al-Aqsa", value: "alaqsa" },
+  { label: "Egypt", value: "egypt" },
+  { label: "Silent", value: "silent" },
+];
+
 export default function PrayerScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("prayers");
+  const [showAdhanModal, setShowAdhanModal] = useState(false);
+  const [selectedAdhan, setSelectedAdhan] = useState("makkah");
   const { user } = useAuth();
   const { colors, shadows } = useTheme();
   const {
@@ -27,17 +36,12 @@ export default function PrayerScreen() {
     formatTimeUntil,
   } = usePrayerTimes();
 
-  const { scheduleDailyPrayerNotifications, notificationSettings } = useNotificationManager();
-
-  // Convex data for real stats
+  // Convex data for stats
   const { isAuthenticated } = useConvexAuth();
   const streaks = useQuery(api.tracking.getStreaks, isAuthenticated ? {} : "skip");
-  const weeklyStats = useQuery(api.tracking.getWeeklyPrayerStats, isAuthenticated ? {} : "skip");
+  const monthlyStats = useQuery(api.tracking.getWeeklyPrayerStats, isAuthenticated ? {} : "skip");
 
-  // Dynamic styles
   const styles = getStyles(colors, shadows);
-
-  // Animation for tab indicator
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -50,17 +54,15 @@ export default function PrayerScreen() {
     }).start();
   }, [activeTab]);
 
-  useEffect(() => {
-    // Schedule notifications when prayer times are loaded
-    if (!loading && prayerTimes.length > 0 && notificationSettings?.prayerReminders) {
-      scheduleDailyPrayerNotifications();
-    }
-  }, [loading, prayerTimes, notificationSettings?.prayerReminders]);
-
-  // Calculate stats
+  // Calculate today's stats
   const completedPrayers = prayerTimes.filter(p => p.completed === true && p.name !== "Sunrise").length;
   const totalPrayers = prayerTimes.filter(p => p.name !== "Sunrise").length;
   const completionRate = totalPrayers > 0 ? Math.round((completedPrayers / totalPrayers) * 100) : 0;
+
+  // Calculate monthly average
+  const monthlyAverage = monthlyStats && monthlyStats.length > 0
+    ? Math.round(monthlyStats.reduce((sum, day) => sum + day.percentage, 0) / monthlyStats.length)
+    : 0;
 
   if (loading) {
     return (
@@ -77,15 +79,14 @@ export default function PrayerScreen() {
     const iconMap: { [key: string]: keyof typeof Ionicons.glyphMap } = {
       "Fajr": "sunny-outline",
       "Sunrise": "sunny",
-      "Dhuhr": "time-outline",
-      "Asr": "partly-sunny-outline",
-      "Maghrib": "sunny-outline",
-      "Isha": "moon-outline",
+      "Dhuhr": "partly-sunny-outline",
+      "Asr": "cloudy-outline",
+      "Maghrib": "moon-outline",
+      "Isha": "moon",
     };
     return iconMap[prayerName] || "time-outline";
   };
 
-  // Get Hijri date using Intl API (accurate with Umm al-Qura calendar)
   const getHijriDate = () => {
     try {
       const today = new Date();
@@ -94,122 +95,112 @@ export default function PrayerScreen() {
         month: "long",
         year: "numeric",
       });
-      return formatter.format(today).replace(" AH", " AH");
+      return formatter.format(today);
     } catch {
-      // Fallback using known reference: Ramadan 1, 1447 AH = Feb 17, 2026
-      const today = new Date();
-      const hijriMonths = [
-        "Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani",
-        "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Shaban",
-        "Ramadan", "Shawwal", "Dhul Qadah", "Dhul Hijjah",
-      ];
-      const refDate = new Date(2026, 1, 17); // Ramadan 1, 1447
-      const diffDays = Math.floor((today.getTime() - refDate.getTime()) / 86400000);
-      const monthLens = [30, 29, 30, 29, 30, 29, 30, 29, 30, 29, 30, 29];
-      let day = 1 + diffDays;
-      let month = 8; // Ramadan = index 8
-      let year = 1447;
-      while (day > monthLens[month]) {
-        day -= monthLens[month];
-        month++;
-        if (month >= 12) { month = 0; year++; }
-      }
-      while (day <= 0) {
-        month--;
-        if (month < 0) { month = 11; year--; }
-        day += monthLens[month];
-      }
-      return `${day} ${hijriMonths[month]} ${year} AH`;
+      return "1447 AH";
     }
   };
 
   const renderPrayersTab = () => (
     <>
+      {/* Next Prayer Banner */}
       {nextPrayer && (
-        <View style={styles.nextPrayerCard}>
-          <View style={styles.nextPrayerIconContainer}>
-            <Ionicons name={getPrayerIcon(nextPrayer.name)} size={32} color={colors.textOnPrimary} />
+        <View style={styles.nextPrayerBanner}>
+          <View style={styles.nextPrayerLeft}>
+            <View style={styles.nextPrayerIconCircle}>
+              <Ionicons name={getPrayerIcon(nextPrayer.name)} size={28} color={colors.textOnPrimary} />
+            </View>
+            <View>
+              <Text style={styles.nextPrayerLabel}>Next Prayer</Text>
+              <Text style={styles.nextPrayerName}>{nextPrayer.name}</Text>
+              <Text style={styles.nextPrayerTime}>{nextPrayer.time}</Text>
+            </View>
           </View>
-          <View style={styles.nextPrayerInfo}>
-            <Text style={styles.nextPrayerTitle}>Next Prayer</Text>
-            <Text style={styles.nextPrayerName}>{nextPrayer.name}</Text>
-            <Text style={styles.nextPrayerTime}>{nextPrayer.time}</Text>
-            <Text style={styles.nextPrayerCountdown}>
-              {formatTimeUntil(nextPrayer.minutesUntil)}
-            </Text>
-          </View>
-          <View style={styles.progressRing}>
-            <Text style={styles.progressText}>{completedPrayers}/{totalPrayers}</Text>
-            <Text style={styles.progressLabel}>Prayed</Text>
+          <View style={styles.nextPrayerRight}>
+            <Text style={styles.countdownText}>{formatTimeUntil(nextPrayer.minutesUntil)}</Text>
+            <Text style={styles.countdownLabel}>remaining</Text>
           </View>
         </View>
       )}
 
+      {/* Date Card */}
       <View style={styles.dateCard}>
         <View style={styles.dateRow}>
-          <Ionicons name="calendar" size={20} color={colors.textOnPrimary} />
-          <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</Text>
+          <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+          <Text style={styles.gregorianDate}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          </Text>
         </View>
-        <Text style={styles.hijriText}>{getHijriDate()}</Text>
+        <Text style={styles.hijriDate}>{getHijriDate()}</Text>
       </View>
 
+      {/* Today's Progress */}
+      <View style={styles.progressCard}>
+        <View style={styles.progressHeader}>
+          <Text style={styles.progressTitle}>Today's Progress</Text>
+          <Text style={styles.progressPercentage}>{completionRate}%</Text>
+        </View>
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${completionRate}%` }]} />
+        </View>
+        <Text style={styles.progressStats}>{completedPrayers} of {totalPrayers} prayers completed</Text>
+      </View>
+
+      {/* Prayer List */}
       <View style={styles.prayersList}>
         {prayerTimes.map((prayer, index) => (
           <TouchableOpacity
             key={index}
             style={[
               styles.prayerCard,
-              prayer.completed === true && styles.completedCard,
-              prayer.completed === null && styles.disabledCard,
-              prayer.isUpcoming && styles.upcomingCard,
+              prayer.completed === true && styles.prayerCardCompleted,
+              prayer.isUpcoming && styles.prayerCardUpcoming,
+              prayer.completed === null && styles.prayerCardDisabled,
             ]}
             onPress={() => togglePrayerCompletion(prayer.name)}
             disabled={prayer.completed === null}
             activeOpacity={0.7}
           >
-            <View style={[
-              styles.prayerIcon,
-              prayer.isUpcoming && styles.upcomingIcon,
-              prayer.completed === true && styles.completedIcon,
-            ]}>
-              <Ionicons 
-                name={getPrayerIcon(prayer.name)} 
-                size={24} 
-                color={
-                  prayer.completed === true 
-                    ? colors.success 
-                    : prayer.completed === null 
-                    ? colors.textMuted 
-                    : prayer.isUpcoming
-                    ? colors.secondary
-                    : colors.primary
-                } 
-              />
+            <View style={styles.prayerLeft}>
+              <View style={[
+                styles.prayerIconCircle,
+                prayer.completed === true && styles.iconCompleted,
+                prayer.isUpcoming && styles.iconUpcoming,
+              ]}>
+                <Ionicons 
+                  name={getPrayerIcon(prayer.name)} 
+                  size={22} 
+                  color={
+                    prayer.completed === true 
+                      ? colors.success 
+                      : prayer.isUpcoming
+                      ? colors.secondary
+                      : colors.primary
+                  } 
+                />
+              </View>
+              <View style={styles.prayerInfo}>
+                <Text style={[
+                  styles.prayerName,
+                  prayer.completed === true && styles.prayerNameCompleted,
+                ]}>
+                  {prayer.name}
+                </Text>
+                <Text style={styles.prayerTime}>{prayer.time}</Text>
+              </View>
             </View>
-            <View style={styles.prayerInfo}>
-              <Text style={[
-                styles.prayerName,
-                prayer.completed === true && styles.completedText,
-              ]}>{prayer.name}</Text>
-              <Text style={styles.prayerTime}>{prayer.time}</Text>
-              {prayer.isUpcoming && (
-                <View style={styles.nextBadge}>
-                  <Text style={styles.nextPrayerLabel}>Up Next</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.prayerStatus}>
-              {prayer.completed === true && (
-                <View style={styles.completedBadge}>
-                  <Ionicons name="checkmark-circle" size={28} color={colors.success} />
-                </View>
-              )}
-              {prayer.completed === false && !prayer.isUpcoming && (
-                <Ionicons name="radio-button-off" size={24} color={colors.textMuted} />
-              )}
+            <View style={styles.prayerRight}>
               {prayer.isUpcoming && (
                 <View style={styles.upcomingBadge}>
-                  <Ionicons name="time" size={24} color={colors.secondary} />
+                  <Text style={styles.upcomingText}>Next</Text>
+                </View>
+              )}
+              {prayer.completed === true && (
+                <Ionicons name="checkmark-circle" size={28} color={colors.success} />
+              )}
+              {prayer.completed === false && !prayer.isUpcoming && (
+                <View style={styles.checkCircle}>
+                  <Ionicons name="ellipse-outline" size={28} color={colors.border} />
                 </View>
               )}
             </View>
@@ -217,99 +208,183 @@ export default function PrayerScreen() {
         ))}
       </View>
 
-      <TouchableOpacity style={styles.refreshButton} onPress={refreshPrayerTimes}>
-        <Ionicons name="refresh" size={20} color={colors.textOnPrimary} />
-        <Text style={styles.refreshButtonText}>Refresh Times</Text>
+      {/* Adhan Selector */}
+      <TouchableOpacity 
+        style={styles.adhanSelector}
+        onPress={() => setShowAdhanModal(true)}
+      >
+        <View style={styles.adhanLeft}>
+          <Ionicons name="volume-high-outline" size={22} color={colors.primary} />
+          <View>
+            <Text style={styles.adhanLabel}>Adhan Sound</Text>
+            <Text style={styles.adhanValue}>
+              {ADHAN_OPTIONS.find(a => a.value === selectedAdhan)?.label || "Makkah"}
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </TouchableOpacity>
+
+      {/* Actions */}
+      <View style={styles.actionsRow}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={refreshPrayerTimes}
+        >
+          <Ionicons name="refresh-outline" size={20} color={colors.primary} />
+          <Text style={styles.actionText}>Refresh</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => setActiveTab("qibla")}
+        >
+          <Ionicons name="compass-outline" size={20} color={colors.secondary} />
+          <Text style={styles.actionText}>Qibla</Text>
+        </TouchableOpacity>
+      </View>
     </>
   );
 
   const renderQiblaTab = () => (
     <View style={styles.qiblaContainer}>
-      <Text style={styles.qiblaSectionTitle}>Qibla Direction</Text>
-      <Text style={styles.qiblaSubtitle}>Face towards the Kaaba in Mecca</Text>
-      <QiblaCompass 
-        userLocation={location ? { latitude: location.latitude, longitude: location.longitude } : undefined}
-        colors={colors}
-        shadows={shadows}
-      />
+      <Text style={styles.tabTitle}>Qibla Direction</Text>
+      <Text style={styles.tabSubtitle}>Face towards the Kaaba in Mecca</Text>
+      
+      {location ? (
+        <QiblaCompass 
+          userLocation={{ latitude: location.latitude, longitude: location.longitude }}
+          colors={colors}
+          shadows={shadows}
+        />
+      ) : (
+        <View style={styles.noLocationCard}>
+          <Ionicons name="location-outline" size={48} color={colors.textMuted} />
+          <Text style={styles.noLocationText}>Location not available</Text>
+          <Text style={styles.noLocationHint}>Please enable location services to use Qibla compass</Text>
+        </View>
+      )}
     </View>
   );
 
   const renderStatsTab = () => (
     <View style={styles.statsContainer}>
-      <Text style={styles.statsSectionTitle}>Prayer Statistics</Text>
-      <Text style={styles.statsSubtitle}>Track your daily prayer progress</Text>
+      <Text style={styles.tabTitle}>Prayer Statistics</Text>
+      <Text style={styles.tabSubtitle}>Track your prayer journey</Text>
 
+      {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
-          <View style={[styles.statIconContainer, { backgroundColor: colors.success + "20" }]}>
-            <Ionicons name="checkmark-done" size={28} color={colors.success} />
+          <View style={[styles.statIcon, { backgroundColor: colors.success + "20" }]}>
+            <Ionicons name="checkmark-done" size={26} color={colors.success} />
           </View>
           <Text style={styles.statValue}>{completedPrayers}</Text>
-          <Text style={styles.statLabel}>Completed</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIconContainer, { backgroundColor: colors.primary + "20" }]}>
-            <Ionicons name="time" size={28} color={colors.primary} />
-          </View>
-          <Text style={styles.statValue}>{totalPrayers - completedPrayers}</Text>
-          <Text style={styles.statLabel}>Remaining</Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <View style={[styles.statIconContainer, { backgroundColor: colors.secondary + "20" }]}>
-            <Ionicons name="trending-up" size={28} color={colors.secondary} />
-          </View>
-          <Text style={styles.statValue}>{completionRate}%</Text>
           <Text style={styles.statLabel}>Today</Text>
         </View>
 
         <View style={styles.statCard}>
-          <View style={[styles.statIconContainer, { backgroundColor: colors.info + "20" }]}>
-            <Ionicons name="flame" size={28} color={colors.info} />
+          <View style={[styles.statIcon, { backgroundColor: colors.warning + "20" }]}>
+            <Ionicons name="flame" size={26} color={colors.warning} />
           </View>
           <Text style={styles.statValue}>{streaks?.prayerStreak ?? 0}</Text>
           <Text style={styles.statLabel}>Day Streak</Text>
         </View>
-      </View>
 
-      {/* Weekly Progress */}
-      <View style={styles.weeklyCard}>
-        <Text style={styles.weeklyTitle}>This Week</Text>
-        <View style={styles.weeklyBars}>
-          {(weeklyStats && weeklyStats.length > 0
-            ? weeklyStats.map((stat) => ({
-                day: stat.dayName,
-                progress: stat.percentage,
-                isToday: stat.date === new Date().toISOString().split("T")[0],
-              }))
-            : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => ({
-                day,
-                progress: new Date().getDay() === (index + 1) % 7 ? completionRate : 0,
-                isToday: new Date().getDay() === (index + 1) % 7,
-              }))
-          ).map(({ day, progress, isToday }) => (
-            <View key={day} style={styles.weeklyBarContainer}>
-              <View style={styles.weeklyBarBackground}>
-                <View 
-                  style={[
-                    styles.weeklyBarFill, 
-                    { height: `${progress}%` },
-                    isToday && styles.weeklyBarToday,
-                  ]} 
-                />
-              </View>
-              <Text style={[styles.weeklyDay, isToday && styles.weeklyDayToday]}>{day}</Text>
-            </View>
-          ))}
+        <View style={styles.statCard}>
+          <View style={[styles.statIcon, { backgroundColor: colors.primary + "20" }]}>
+            <Ionicons name="trending-up" size={26} color={colors.primary} />
+          </View>
+          <Text style={styles.statValue}>{completionRate}%</Text>
+          <Text style={styles.statLabel}>Today's Rate</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <View style={[styles.statIcon, { backgroundColor: colors.secondary + "20" }]}>
+            <Ionicons name="calendar" size={26} color={colors.secondary} />
+          </View>
+          <Text style={styles.statValue}>{monthlyAverage}%</Text>
+          <Text style={styles.statLabel}>Monthly Avg</Text>
         </View>
       </View>
 
-      {/* Motivation Card */}
+      {/* Prayer Breakdown */}
+      <View style={styles.breakdownCard}>
+        <Text style={styles.breakdownTitle}>Today's Breakdown</Text>
+        {prayerTimes.filter(p => p.name !== "Sunrise").map((prayer, index) => (
+          <View key={index} style={styles.breakdownRow}>
+            <View style={styles.breakdownLeft}>
+              <Ionicons 
+                name={getPrayerIcon(prayer.name)} 
+                size={18} 
+                color={prayer.completed ? colors.success : colors.textMuted} 
+              />
+              <Text style={styles.breakdownName}>{prayer.name}</Text>
+            </View>
+            <View style={styles.breakdownRight}>
+              <Text style={styles.breakdownTime}>{prayer.time}</Text>
+              <View style={[
+                styles.breakdownStatus,
+                prayer.completed === true && styles.breakdownStatusComplete,
+                prayer.completed === null && styles.breakdownStatusNA,
+              ]}>
+                <Text style={[
+                  styles.breakdownStatusText,
+                  prayer.completed === true && styles.breakdownStatusTextComplete,
+                ]}>
+                  {prayer.completed === true ? "✓ Prayed" : prayer.completed === false ? "Pending" : "—"}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))}
+      </View>
+
+      {/* Monthly Calendar Grid */}
+      {monthlyStats && monthlyStats.length > 0 && (
+        <View style={styles.monthlyCard}>
+          <Text style={styles.monthlyTitle}>This Month</Text>
+          <View style={styles.monthlyGrid}>
+            {monthlyStats.slice(-30).map((day, index) => {
+              const isToday = day.date === new Date().toISOString().split("T")[0];
+              const percentage = day.percentage;
+              return (
+                <View 
+                  key={index} 
+                  style={[
+                    styles.monthlyDay,
+                    isToday && styles.monthlyDayToday,
+                  ]}
+                >
+                  <View style={[
+                    styles.monthlyDayIndicator,
+                    percentage >= 80 && styles.monthlyDayGreen,
+                    percentage >= 40 && percentage < 80 && styles.monthlyDayYellow,
+                    percentage < 40 && percentage > 0 && styles.monthlyDayRed,
+                  ]} />
+                </View>
+              );
+            })}
+          </View>
+          <View style={styles.monthlyLegend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.monthlyDayGreen]} />
+              <Text style={styles.legendText}>80-100%</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.monthlyDayYellow]} />
+              <Text style={styles.legendText}>40-79%</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.monthlyDayRed]} />
+              <Text style={styles.legendText}>0-39%</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* Motivation */}
       <View style={styles.motivationCard}>
-        <Ionicons name="sparkles" size={24} color={colors.secondary} />
+        <Ionicons name="heart" size={22} color={colors.secondary} />
         <Text style={styles.motivationText}>
           "Indeed, prayer prohibits immorality and wrongdoing, and the remembrance of Allah is greater."
         </Text>
@@ -323,15 +398,21 @@ export default function PrayerScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Prayer Times</Text>
-          <Text style={styles.location}>
+          <Text style={styles.headerTitle}>Prayer Times</Text>
+          <View style={styles.locationRow}>
             <Ionicons name="location" size={14} color={colors.textSecondary} />
-            {" "}{location?.city || "Enable location"}
-          </Text>
+            <Text style={styles.locationText}>
+              {location?.city || "Location not set"}
+            </Text>
+          </View>
         </View>
         {user?.calculationMethod && (
           <View style={styles.methodBadge}>
-            <Text style={styles.methodText}>{user.calculationMethod.slice(0, 12)}</Text>
+            <Text style={styles.methodText}>
+              {user.calculationMethod.includes("Muslim") ? "MWL" : 
+               user.calculationMethod.includes("ISNA") ? "ISNA" :
+               user.calculationMethod.slice(0, 8)}
+            </Text>
           </View>
         )}
       </View>
@@ -339,7 +420,7 @@ export default function PrayerScreen() {
       {/* Tab Bar */}
       <View style={styles.tabBar}>
         <TouchableOpacity 
-          style={[styles.tab, activeTab === "prayers" && styles.activeTab]}
+          style={[styles.tab, activeTab === "prayers" && styles.tabActive]}
           onPress={() => setActiveTab("prayers")}
         >
           <Ionicons 
@@ -347,13 +428,13 @@ export default function PrayerScreen() {
             size={20} 
             color={activeTab === "prayers" ? colors.primary : colors.textMuted} 
           />
-          <Text style={[styles.tabText, activeTab === "prayers" && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === "prayers" && styles.tabTextActive]}>
             Prayers
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.tab, activeTab === "qibla" && styles.activeTab]}
+          style={[styles.tab, activeTab === "qibla" && styles.tabActive]}
           onPress={() => setActiveTab("qibla")}
         >
           <Ionicons 
@@ -361,31 +442,85 @@ export default function PrayerScreen() {
             size={20} 
             color={activeTab === "qibla" ? colors.primary : colors.textMuted} 
           />
-          <Text style={[styles.tabText, activeTab === "qibla" && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === "qibla" && styles.tabTextActive]}>
             Qibla
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={[styles.tab, activeTab === "stats" && styles.activeTab]}
+          style={[styles.tab, activeTab === "stats" && styles.tabActive]}
           onPress={() => setActiveTab("stats")}
         >
           <Ionicons 
-            name="stats-chart-outline" 
+            name="bar-chart-outline" 
             size={20} 
             color={activeTab === "stats" ? colors.primary : colors.textMuted} 
           />
-          <Text style={[styles.tabText, activeTab === "stats" && styles.activeTabText]}>
+          <Text style={[styles.tabText, activeTab === "stats" && styles.tabTextActive]}>
             Stats
           </Text>
         </TouchableOpacity>
       </View>
 
+      {/* Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {activeTab === "prayers" && renderPrayersTab()}
         {activeTab === "qibla" && renderQiblaTab()}
         {activeTab === "stats" && renderStatsTab()}
+        <View style={{ height: spacing.xxxl }} />
       </ScrollView>
+
+      {/* Adhan Selection Modal */}
+      <Modal
+        visible={showAdhanModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAdhanModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Adhan Sound</Text>
+              <TouchableOpacity onPress={() => setShowAdhanModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.adhanOptions}>
+              {ADHAN_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.adhanOption,
+                    selectedAdhan === option.value && styles.adhanOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedAdhan(option.value);
+                    setShowAdhanModal(false);
+                  }}
+                >
+                  <View style={styles.adhanOptionLeft}>
+                    <Ionicons 
+                      name={option.value === "silent" ? "volume-mute-outline" : "volume-high-outline"} 
+                      size={22} 
+                      color={selectedAdhan === option.value ? colors.primary : colors.textMuted} 
+                    />
+                    <Text style={[
+                      styles.adhanOptionText,
+                      selectedAdhan === option.value && styles.adhanOptionTextSelected,
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </View>
+                  {selectedAdhan === option.value && (
+                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -397,7 +532,7 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   loadingContainer: {
     flex: 1,
@@ -410,6 +545,8 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
   },
+
+  // Header
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -418,35 +555,42 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     paddingTop: spacing.md,
     marginBottom: spacing.md,
   },
-  title: {
+  headerTitle: {
     fontSize: typography.sizes.xxl,
     fontFamily: typography.fonts.bold,
     color: colors.primary,
     marginBottom: spacing.xxs,
   },
-  location: {
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  locationText: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
   },
   methodBadge: {
     backgroundColor: colors.primary + "15",
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.full,
   },
   methodText: {
     fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.medium,
+    fontFamily: typography.fonts.semiBold,
     color: colors.primary,
   },
+
+  // Tab Bar
   tabBar: {
     flexDirection: "row",
     marginHorizontal: spacing.lg,
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.xs,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
     ...shadows.sm,
   },
   tab: {
@@ -454,11 +598,11 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.md,
     gap: spacing.xs,
     borderRadius: borderRadius.md,
   },
-  activeTab: {
+  tabActive: {
     backgroundColor: colors.primary + "15",
   },
   tabText: {
@@ -466,20 +610,28 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     fontFamily: typography.fonts.medium,
     color: colors.textMuted,
   },
-  activeTabText: {
+  tabTextActive: {
     color: colors.primary,
     fontFamily: typography.fonts.semiBold,
   },
-  nextPrayerCard: {
+
+  // Next Prayer Banner
+  nextPrayerBanner: {
     backgroundColor: colors.primary,
     borderRadius: borderRadius.xl,
     padding: spacing.xl,
     marginBottom: spacing.lg,
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    ...shadows.lg,
+    ...shadows.md,
   },
-  nextPrayerIconContainer: {
+  nextPrayerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  nextPrayerIconCircle: {
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -487,12 +639,8 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  nextPrayerInfo: {
-    flex: 1,
-    marginLeft: spacing.lg,
-  },
-  nextPrayerTitle: {
-    fontSize: typography.sizes.sm,
+  nextPrayerLabel: {
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.regular,
     color: colors.textOnPrimary,
     opacity: 0.9,
@@ -505,111 +653,146 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     marginBottom: spacing.xxs,
   },
   nextPrayerTime: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.md,
     fontFamily: typography.fonts.semiBold,
     color: colors.textOnPrimary,
-    marginBottom: spacing.xxs,
   },
-  nextPrayerCountdown: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textOnPrimary,
-    opacity: 0.85,
+  nextPrayerRight: {
+    alignItems: "flex-end",
   },
-  progressRing: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  progressText: {
-    fontSize: typography.sizes.lg,
+  countdownText: {
+    fontSize: typography.sizes.xxl,
     fontFamily: typography.fonts.bold,
     color: colors.textOnPrimary,
   },
-  progressLabel: {
+  countdownLabel: {
     fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.regular,
     color: colors.textOnPrimary,
     opacity: 0.8,
   },
+
+  // Date Card
   dateCard: {
-    backgroundColor: colors.secondary,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
     padding: spacing.md,
     marginBottom: spacing.lg,
-    alignItems: "center",
+    ...shadows.sm,
   },
   dateRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    marginBottom: spacing.xxs,
+    marginBottom: spacing.xs,
   },
-  dateText: {
-    fontSize: typography.sizes.md,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.textOnPrimary,
+  gregorianDate: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.text,
   },
-  hijriText: {
+  hijriDate: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.regular,
-    color: colors.textOnPrimary,
-    opacity: 0.9,
+    color: colors.textSecondary,
   },
+
+  // Progress Card
+  progressCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.sm,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: spacing.md,
+  },
+  progressTitle: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+  },
+  progressPercentage: {
+    fontSize: typography.sizes.xl,
+    fontFamily: typography.fonts.bold,
+    color: colors.primary,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: colors.border,
+    borderRadius: borderRadius.full,
+    overflow: "hidden",
+    marginBottom: spacing.sm,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.full,
+  },
+  progressStats: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+  },
+
+  // Prayer List
   prayersList: {
     marginBottom: spacing.lg,
   },
   prayerCard: {
     backgroundColor: colors.surface,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
     marginBottom: spacing.sm,
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     ...shadows.sm,
   },
-  completedCard: {
+  prayerCardCompleted: {
     backgroundColor: colors.success + "10",
     borderLeftWidth: 4,
     borderLeftColor: colors.success,
   },
-  disabledCard: {
-    backgroundColor: colors.surfaceElevated,
-    opacity: 0.6,
-  },
-  upcomingCard: {
+  prayerCardUpcoming: {
     backgroundColor: colors.secondary + "10",
     borderLeftWidth: 4,
     borderLeftColor: colors.secondary,
   },
-  prayerIcon: {
+  prayerCardDisabled: {
+    opacity: 0.5,
+  },
+  prayerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  prayerIconCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.primaryLight + "15",
+    backgroundColor: colors.primary + "20",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: spacing.md,
   },
-  upcomingIcon: {
-    backgroundColor: colors.secondary + "20",
-  },
-  completedIcon: {
+  iconCompleted: {
     backgroundColor: colors.success + "20",
   },
-  prayerInfo: {
-    flex: 1,
+  iconUpcoming: {
+    backgroundColor: colors.secondary + "20",
   },
+  prayerInfo: {},
   prayerName: {
     fontSize: typography.sizes.md,
     fontFamily: typography.fonts.semiBold,
     color: colors.text,
     marginBottom: spacing.xxs,
   },
-  completedText: {
+  prayerNameCompleted: {
     color: colors.success,
   },
   prayerTime: {
@@ -617,79 +800,113 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
   },
-  nextBadge: {
-    marginTop: spacing.xs,
-  },
-  nextPrayerLabel: {
-    fontSize: typography.sizes.xs,
-    fontFamily: typography.fonts.semiBold,
-    color: colors.secondary,
-  },
-  prayerStatus: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  completedBadge: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "center",
+  prayerRight: {
+    alignItems: "flex-end",
   },
   upcomingBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.secondary + "15",
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: colors.secondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
   },
-  refreshButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: spacing.xl,
-    ...shadows.md,
-  },
-  refreshButtonText: {
-    color: colors.textOnPrimary,
-    fontSize: typography.sizes.md,
+  upcomingText: {
+    fontSize: typography.sizes.xs,
     fontFamily: typography.fonts.semiBold,
-    marginLeft: spacing.sm,
+    color: colors.textOnPrimary,
   },
-  // Qibla Tab Styles
+  checkCircle: {},
+
+  // Adhan Selector
+  adhanSelector: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    ...shadows.sm,
+  },
+  adhanLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  adhanLabel: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.text,
+    marginBottom: spacing.xxs,
+  },
+  adhanValue: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+  },
+
+  // Actions
+  actionsRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    ...shadows.sm,
+  },
+  actionText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+  },
+
+  // Qibla Tab
   qiblaContainer: {
     paddingBottom: spacing.xl,
   },
-  qiblaSectionTitle: {
+  tabTitle: {
     fontSize: typography.sizes.xl,
     fontFamily: typography.fonts.bold,
     color: colors.text,
     marginBottom: spacing.xs,
   },
-  qiblaSubtitle: {
+  tabSubtitle: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.xl,
   },
-  // Stats Tab Styles
+  noLocationCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xxxl,
+    alignItems: "center",
+    ...shadows.sm,
+  },
+  noLocationText: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  noLocationHint: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.regular,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+
+  // Stats Tab
   statsContainer: {
     paddingBottom: spacing.xl,
-  },
-  statsSectionTitle: {
-    fontSize: typography.sizes.xl,
-    fontFamily: typography.fonts.bold,
-    color: colors.text,
-    marginBottom: spacing.xs,
-  },
-  statsSubtitle: {
-    fontSize: typography.sizes.sm,
-    fontFamily: typography.fonts.regular,
-    color: colors.textSecondary,
-    marginBottom: spacing.lg,
   },
   statsGrid: {
     flexDirection: "row",
@@ -706,10 +923,10 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     alignItems: "center",
     ...shadows.sm,
   },
-  statIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  statIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: spacing.sm,
@@ -718,61 +935,150 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     fontSize: typography.sizes.xxl,
     fontFamily: typography.fonts.bold,
     color: colors.text,
+    marginBottom: spacing.xxs,
   },
   statLabel: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
   },
-  weeklyCard: {
+
+  // Breakdown
+  breakdownCard: {
     backgroundColor: colors.surface,
     borderRadius: borderRadius.lg,
     padding: spacing.lg,
     marginBottom: spacing.lg,
     ...shadows.sm,
   },
-  weeklyTitle: {
+  breakdownTitle: {
     fontSize: typography.sizes.md,
     fontFamily: typography.fonts.semiBold,
     color: colors.text,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  weeklyBars: {
+  breakdownRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    height: 100,
-  },
-  weeklyBarContainer: {
     alignItems: "center",
-    flex: 1,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
   },
-  weeklyBarBackground: {
-    width: 24,
-    height: 80,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: borderRadius.sm,
-    overflow: "hidden",
-    justifyContent: "flex-end",
+  breakdownLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
-  weeklyBarFill: {
-    width: "100%",
-    backgroundColor: colors.primary + "60",
-    borderRadius: borderRadius.sm,
+  breakdownName: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.medium,
+    color: colors.text,
   },
-  weeklyBarToday: {
-    backgroundColor: colors.primary,
+  breakdownRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
   },
-  weeklyDay: {
-    marginTop: spacing.xs,
-    fontSize: typography.sizes.xs,
+  breakdownTime: {
+    fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.regular,
     color: colors.textMuted,
   },
-  weeklyDayToday: {
-    fontFamily: typography.fonts.bold,
-    color: colors.primary,
+  breakdownStatus: {
+    backgroundColor: colors.border,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxs,
+    borderRadius: borderRadius.sm,
+    minWidth: 70,
+    alignItems: "center",
   },
+  breakdownStatusComplete: {
+    backgroundColor: colors.success + "20",
+  },
+  breakdownStatusNA: {
+    backgroundColor: colors.surfaceElevated,
+  },
+  breakdownStatusText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.medium,
+    color: colors.textMuted,
+  },
+  breakdownStatusTextComplete: {
+    color: colors.success,
+  },
+
+  // Monthly Calendar
+  monthlyCard: {
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...shadows.sm,
+  },
+  monthlyTitle: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.text,
+    marginBottom: spacing.md,
+  },
+  monthlyGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  monthlyDay: {
+    width: 28,
+    height: 28,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.surfaceElevated,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  monthlyDayToday: {
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  monthlyDayIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: borderRadius.sm,
+    backgroundColor: colors.border,
+  },
+  monthlyDayGreen: {
+    backgroundColor: colors.success,
+  },
+  monthlyDayYellow: {
+    backgroundColor: colors.warning,
+  },
+  monthlyDayRed: {
+    backgroundColor: colors.error,
+  },
+  monthlyLegend: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.regular,
+    color: colors.textSecondary,
+  },
+
+  // Motivation
   motivationCard: {
     backgroundColor: colors.secondary + "15",
     borderRadius: borderRadius.lg,
@@ -782,18 +1088,74 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     borderLeftColor: colors.secondary,
   },
   motivationText: {
-    fontSize: typography.sizes.md,
+    fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.medium,
     color: colors.text,
     textAlign: "center",
-    lineHeight: typography.sizes.md * 1.6,
-    marginTop: spacing.sm,
     fontStyle: "italic",
+    marginVertical: spacing.md,
+    lineHeight: 22,
   },
   motivationSource: {
     fontSize: typography.sizes.sm,
     fontFamily: typography.fonts.semiBold,
     color: colors.secondary,
-    marginTop: spacing.sm,
+  },
+
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    paddingBottom: spacing.xxxl,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  modalTitle: {
+    fontSize: typography.sizes.lg,
+    fontFamily: typography.fonts.bold,
+    color: colors.text,
+  },
+  adhanOptions: {
+    padding: spacing.lg,
+  },
+  adhanOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+  },
+  adhanOptionSelected: {
+    backgroundColor: colors.primary + "15",
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  adhanOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  adhanOptionText: {
+    fontSize: typography.sizes.md,
+    fontFamily: typography.fonts.medium,
+    color: colors.text,
+  },
+  adhanOptionTextSelected: {
+    color: colors.primary,
+    fontFamily: typography.fonts.semiBold,
   },
 });
