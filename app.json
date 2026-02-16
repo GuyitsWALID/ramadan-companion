@@ -48,7 +48,13 @@
         "expo-notifications",
         {
           "color": "#0D5C4D",
-          "defaultChannel": "prayer-reminders"
+          "defaultChannel": "prayer-reminders",
+          "sounds": [
+            "./assets/adhan/azan1.mp3",
+            "./assets/adhan/azan2.mp3",
+            "./assets/adhan/azan3.mp3",
+            "./assets/adhan/azan4.mp3"
+          ]
         }
       ],
       "expo-font",

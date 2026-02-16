@@ -12,11 +12,11 @@ import {
   scheduleQuranReminder as scheduleQuranReminderNative,
   testNotification as testNotificationNative,
 } from "../utils/notifications";
+import { getAdhanByValue } from "../constants/adhan";
+import { loadSelectedAdhan } from "../utils/adhanPreferences";
 import {
   calculateTodayPrayerTimes,
   getNextPrayerTime,
-  loadPrayerSettings,
-  loadLocationData,
 } from "../utils/prayerTimes";
 
 interface NotificationSettings {
@@ -47,10 +47,10 @@ export const useNotificationManager = () => {
       }
 
       // Create notification channels
-      await createPrayerNotificationChannels();
-
       // Load settings
       const settings = await loadNotificationSettings();
+      const selectedAdhan = await loadSelectedAdhan();
+      await createPrayerNotificationChannels(selectedAdhan, settings.soundEnabled);
       setNotificationSettings(settings);
 
       setIsInitialized(true);
@@ -61,9 +61,12 @@ export const useNotificationManager = () => {
   };
 
   // Schedule daily prayer notifications
-  const scheduleDailyPrayerNotifications = async () => {
+  const scheduleDailyPrayerNotifications = async (
+    settingsOverride?: NotificationSettings
+  ) => {
     try {
-      if (!notificationSettings?.prayerReminders) {
+      const activeSettings = settingsOverride ?? notificationSettings;
+      if (!activeSettings?.prayerReminders) {
         console.log("Prayer reminders disabled");
         return;
       }
@@ -75,23 +78,31 @@ export const useNotificationManager = () => {
 
       // Load prayer times and settings
       const prayerTimes = await calculateTodayPrayerTimes();
-      const prayerSettings = await loadPrayerSettings();
-      const location = await loadLocationData();
+      const selectedAdhan = await loadSelectedAdhan();
+      const selectedAdhanConfig = getAdhanByValue(selectedAdhan);
+      const prayerSound =
+        activeSettings.soundEnabled && selectedAdhan !== "silent"
+          ? selectedAdhanConfig.notificationSound || "default"
+          : undefined;
+      const channelIds = await createPrayerNotificationChannels(
+        selectedAdhan,
+        activeSettings.soundEnabled
+      );
 
       // Schedule each prayer
-      await schedulePrayerNotification("Fajr", prayerTimes.fajr, "fajr-prayer");
-      await schedulePrayerNotification("Dhuhr", prayerTimes.dhuhr, "regular-prayers");
-      await schedulePrayerNotification("Asr", prayerTimes.asr, "regular-prayers");
-      await schedulePrayerNotification("Maghrib", prayerTimes.maghrib, "regular-prayers");
-      await schedulePrayerNotification("Isha", prayerTimes.isha, "regular-prayers");
+      await schedulePrayerNotification("Fajr", prayerTimes.fajr, channelIds.fajrChannelId, prayerSound);
+      await schedulePrayerNotification("Dhuhr", prayerTimes.dhuhr, channelIds.regularChannelId, prayerSound);
+      await schedulePrayerNotification("Asr", prayerTimes.asr, channelIds.regularChannelId, prayerSound);
+      await schedulePrayerNotification("Maghrib", prayerTimes.maghrib, channelIds.regularChannelId, prayerSound);
+      await schedulePrayerNotification("Isha", prayerTimes.isha, channelIds.regularChannelId, prayerSound);
 
       // Schedule pre-prayer reminders
-      if (notificationSettings.vibrationEnabled) {
-        await schedulePrayerReminder("Fajr", prayerTimes.fajr, 15);
-        await schedulePrayerReminder("Dhuhr", prayerTimes.dhuhr, 15);
-        await schedulePrayerReminder("Asr", prayerTimes.asr, 15);
-        await schedulePrayerReminder("Maghrib", prayerTimes.maghrib, 15);
-        await schedulePrayerReminder("Isha", prayerTimes.isha, 15);
+      if (activeSettings.vibrationEnabled) {
+        await schedulePrayerReminder("Fajr", prayerTimes.fajr, 15, prayerSound);
+        await schedulePrayerReminder("Dhuhr", prayerTimes.dhuhr, 15, prayerSound);
+        await schedulePrayerReminder("Asr", prayerTimes.asr, 15, prayerSound);
+        await schedulePrayerReminder("Maghrib", prayerTimes.maghrib, 15, prayerSound);
+        await schedulePrayerReminder("Isha", prayerTimes.isha, 15, prayerSound);
       }
 
       console.log("Daily prayer notifications scheduled");
@@ -108,13 +119,20 @@ export const useNotificationManager = () => {
         return;
       }
 
+      const selectedAdhan = await loadSelectedAdhan();
+      const selectedAdhanConfig = getAdhanByValue(selectedAdhan);
+      const prayerSound =
+        notificationSettings.soundEnabled && selectedAdhan !== "silent"
+          ? selectedAdhanConfig.notificationSound || "default"
+          : undefined;
+
       console.log(`Scheduling Ramadan notifications for day ${dayNumber}`);
 
       // Schedule Sehri
-      await scheduleRamadanNotification("sehri", sehriTime, dayNumber);
+      await scheduleRamadanNotification("sehri", sehriTime, dayNumber, prayerSound);
 
       // Schedule Iftar
-      await scheduleRamadanNotification("iftar", iftarTime, dayNumber);
+      await scheduleRamadanNotification("iftar", iftarTime, dayNumber, prayerSound);
 
       console.log(`Ramadan notifications scheduled for day ${dayNumber}`);
     } catch (error) {
@@ -144,7 +162,7 @@ export const useNotificationManager = () => {
       
       // Reschedule notifications with new settings
       if (newSettings.prayerReminders) {
-        await scheduleDailyPrayerNotifications();
+        await scheduleDailyPrayerNotifications(newSettings);
       } else {
         await cancelAllNotifications();
       }

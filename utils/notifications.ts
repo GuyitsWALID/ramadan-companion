@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 // Types only: avoid importing expo-notifications at runtime in Expo Go
 import type { SchedulableTriggerInputTypes, CalendarTriggerInput, DateTriggerInput, TimeIntervalTriggerInput } from "expo-notifications";
+import { AdhanValue, DEFAULT_ADHAN, getAdhanByValue } from "../constants/adhan";
 
 // Check if running in Expo Go
 export const isExpoGo = Constants.appOwnership === "expo";
@@ -69,22 +70,37 @@ export const requestNotificationPermissions = async () => {
 };
 
 // Create prayer notification channels
-export const createPrayerNotificationChannels = async () => {
+export const createPrayerNotificationChannels = async (
+  selectedAdhan: AdhanValue = DEFAULT_ADHAN,
+  soundEnabled: boolean = true
+) => {
+  const soundName =
+    soundEnabled && selectedAdhan !== "silent"
+      ? getAdhanByValue(selectedAdhan).notificationSound || "default"
+      : undefined;
+
+  const channels = {
+    fajrChannelId: `fajr-prayer-${selectedAdhan}`,
+    regularChannelId: `regular-prayers-${selectedAdhan}`,
+    reminderChannelId: `prayer-reminders-${selectedAdhan}`,
+    ramadanChannelId: `ramadan-special-${selectedAdhan}`,
+  };
+
   // Skip in Expo Go on Android
   if (isExpoGo && Platform.OS === "android") {
     console.log("Skipping notification channels in Expo Go");
-    return;
+    return channels;
   }
 
   const Notifications = await loadNotificationsModule();
-  if (!Notifications) return;
+  if (!Notifications) return channels;
 
   if (Platform.OS === "android") {
     // Fajr channel (special importance)
-    await Notifications.setNotificationChannelAsync("fajr-prayer", {
+    await Notifications.setNotificationChannelAsync(channels.fajrChannelId, {
       name: "Fajr Prayer",
       importance: Notifications.AndroidImportance.HIGH,
-      sound: "default",
+      sound: soundName || "default",
       enableVibrate: true,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FFD700",
@@ -92,43 +108,46 @@ export const createPrayerNotificationChannels = async () => {
     });
 
     // Regular prayers channel
-    await Notifications.setNotificationChannelAsync("regular-prayers", {
+    await Notifications.setNotificationChannelAsync(channels.regularChannelId, {
       name: "Regular Prayers",
       importance: Notifications.AndroidImportance.DEFAULT,
-      sound: "default",
+      sound: soundName || "default",
       enableVibrate: true,
       vibrationPattern: [0, 250],
       lightColor: "#0D5C4D",
     });
 
     // Prayer reminders channel
-    await Notifications.setNotificationChannelAsync("prayer-reminders", {
+    await Notifications.setNotificationChannelAsync(channels.reminderChannelId, {
       name: "Prayer Reminders",
       importance: Notifications.AndroidImportance.LOW,
-      sound: "default",
+      sound: soundName || "default",
       enableVibrate: true,
       vibrationPattern: [0, 100],
       lightColor: "#1976D2",
     });
 
     // Ramadan special channel
-    await Notifications.setNotificationChannelAsync("ramadan-special", {
+    await Notifications.setNotificationChannelAsync(channels.ramadanChannelId, {
       name: "Ramadan Special",
       importance: Notifications.AndroidImportance.HIGH,
-      sound: "default",
+      sound: soundName || "default",
       enableVibrate: true,
       vibrationPattern: [0, 250, 100, 250],
       lightColor: "#f9a825",
       bypassDnd: true,
     });
   }
+
+  return channels;
 };
 
 // Schedule prayer notification
 export const schedulePrayerNotification = async (
   prayerName: string,
   time: string,
-  channelId: string = "regular-prayers"
+  channelId: string = "regular-prayers",
+  sound: string | undefined = "default"
 ) => {
   // Skip in Expo Go on Android
   if (isExpoGo && Platform.OS === "android") {
@@ -146,7 +165,7 @@ export const schedulePrayerNotification = async (
       content: {
         title: `🕌 ${prayerName} Prayer Time`,
         body: `It's time for ${prayerName} prayer. May Allah accept your prayers.`,
-        sound: "default",
+        sound,
         data: { prayerName, type: "prayer-time" },
       },
       trigger: ({
@@ -168,7 +187,8 @@ export const schedulePrayerNotification = async (
 export const scheduleRamadanNotification = async (
   type: "sehri" | "iftar",
   time: string,
-  dayNumber: number
+  dayNumber: number,
+  sound: string | undefined = "default"
 ) => {
   // Skip in Expo Go on Android
   if (isExpoGo && Platform.OS === "android") {
@@ -188,7 +208,7 @@ export const scheduleRamadanNotification = async (
         body: type === "sehri" 
           ? `Sehri time for Day ${dayNumber}. Have a blessed fast!`
           : `Iftar time for Day ${dayNumber}. Break your fast with dates!`,
-        sound: "default",
+        sound,
         data: { type, dayNumber, notificationType: "ramadan-special" },
       },
       trigger: ({
@@ -210,7 +230,8 @@ export const scheduleRamadanNotification = async (
 export const schedulePrayerReminder = async (
   prayerName: string,
   prayerTime: string,
-  reminderMinutes: number = 15
+  reminderMinutes: number = 15,
+  sound: string | undefined = "default"
 ) => {
   // Skip in Expo Go on Android
   if (isExpoGo && Platform.OS === "android") {
@@ -232,7 +253,7 @@ export const schedulePrayerReminder = async (
         content: {
           title: `⏰ ${prayerName} Prayer Reminder`,
           body: `${prayerName} prayer starts in ${reminderMinutes} minutes. Prepare for prayer.`,
-          sound: "default",
+          sound,
           data: { prayerName, type: "prayer-reminder" },
         },
         trigger: ({ type: "date", date: reminderTime } as unknown) as DateTriggerInput,

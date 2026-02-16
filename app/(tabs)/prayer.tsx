@@ -3,27 +3,24 @@ import { useEffect, useState, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useConvexAuth } from "convex/react";
+import { Audio } from "expo-av";
 import { api } from "../../convex/_generated/api";
 import { usePrayerTimes } from "../../hooks/usePrayerTimes";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { typography, spacing, borderRadius } from "../../constants/theme";
+import { ADHAN_OPTIONS, getAdhanByValue, AdhanValue } from "../../constants/adhan";
+import { loadSelectedAdhan, saveSelectedAdhan } from "../../utils/adhanPreferences";
 import QiblaCompass from "../../components/QiblaCompass";
 
 type TabType = "prayers" | "qibla" | "stats";
 
-const ADHAN_OPTIONS = [
-  { label: "Makkah", value: "makkah" },
-  { label: "Madinah", value: "madinah" },
-  { label: "Al-Aqsa", value: "alaqsa" },
-  { label: "Egypt", value: "egypt" },
-  { label: "Silent", value: "silent" },
-];
-
 export default function PrayerScreen() {
   const [activeTab, setActiveTab] = useState<TabType>("prayers");
   const [showAdhanModal, setShowAdhanModal] = useState(false);
-  const [selectedAdhan, setSelectedAdhan] = useState("makkah");
+  const [selectedAdhan, setSelectedAdhan] = useState<AdhanValue>("makkah");
+  const [playingAdhan, setPlayingAdhan] = useState<AdhanValue | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<AdhanValue | null>(null);
   const { user } = useAuth();
   const { colors, shadows } = useTheme();
   const {
@@ -43,6 +40,15 @@ export default function PrayerScreen() {
 
   const styles = getStyles(colors, shadows);
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+  const previewSoundRef = useRef<Audio.Sound | null>(null);
+
+  useEffect(() => {
+    const loadPreference = async () => {
+      const saved = await loadSelectedAdhan();
+      setSelectedAdhan(saved);
+    };
+    loadPreference();
+  }, []);
 
   useEffect(() => {
     const tabIndex = activeTab === "prayers" ? 0 : activeTab === "qibla" ? 1 : 2;
@@ -53,6 +59,77 @@ export default function PrayerScreen() {
       friction: 12,
     }).start();
   }, [activeTab]);
+
+  useEffect(() => {
+    return () => {
+      if (previewSoundRef.current) {
+        previewSoundRef.current.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  const stopPreview = async () => {
+    try {
+      if (previewSoundRef.current) {
+        await previewSoundRef.current.stopAsync();
+        await previewSoundRef.current.unloadAsync();
+        previewSoundRef.current = null;
+      }
+    } catch (error) {
+      console.error("Error stopping preview:", error);
+    } finally {
+      setPlayingAdhan(null);
+    }
+  };
+
+  const handleSelectAdhan = async (value: AdhanValue) => {
+    setSelectedAdhan(value);
+    await saveSelectedAdhan(value);
+    setShowAdhanModal(false);
+  };
+
+  const handlePreviewAdhan = async (value: AdhanValue) => {
+    if (value === "silent") {
+      await stopPreview();
+      return;
+    }
+
+    const option = getAdhanByValue(value);
+    if (!option.previewSource) return;
+
+    try {
+      if (playingAdhan === value) {
+        await stopPreview();
+        return;
+      }
+
+      setPreviewLoading(value);
+      await stopPreview();
+
+      const { sound } = await Audio.Sound.createAsync(
+        option.previewSource,
+        { shouldPlay: true, volume: 1.0 }
+      );
+      previewSoundRef.current = sound;
+      setPlayingAdhan(value);
+
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+        if (status.didJustFinish) {
+          setPlayingAdhan(null);
+          sound.unloadAsync().catch(() => {});
+          if (previewSoundRef.current === sound) {
+            previewSoundRef.current = null;
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error previewing adhan:", error);
+      setPlayingAdhan(null);
+    } finally {
+      setPreviewLoading(null);
+    }
+  };
 
   // Calculate today's stats
   const completedPrayers = prayerTimes.filter(p => p.completed === true && p.name !== "Sunrise").length;
@@ -218,7 +295,7 @@ export default function PrayerScreen() {
           <View>
             <Text style={styles.adhanLabel}>Adhan Sound</Text>
             <Text style={styles.adhanValue}>
-              {ADHAN_OPTIONS.find(a => a.value === selectedAdhan)?.label || "Makkah"}
+              {getAdhanByValue(selectedAdhan)?.label || "Makkah"}
             </Text>
           </View>
         </View>
@@ -488,16 +565,12 @@ export default function PrayerScreen() {
             
             <View style={styles.adhanOptions}>
               {ADHAN_OPTIONS.map((option) => (
-                <TouchableOpacity
+                <View
                   key={option.value}
                   style={[
                     styles.adhanOption,
                     selectedAdhan === option.value && styles.adhanOptionSelected,
                   ]}
-                  onPress={() => {
-                    setSelectedAdhan(option.value);
-                    setShowAdhanModal(false);
-                  }}
                 >
                   <View style={styles.adhanOptionLeft}>
                     <Ionicons 
@@ -512,10 +585,46 @@ export default function PrayerScreen() {
                       {option.label}
                     </Text>
                   </View>
-                  {selectedAdhan === option.value && (
-                    <Ionicons name="checkmark-circle" size={24} color={colors.primary} />
-                  )}
-                </TouchableOpacity>
+
+                  <View style={styles.adhanOptionActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.previewButton,
+                        playingAdhan === option.value && styles.previewButtonActive,
+                        option.value === "silent" && styles.previewButtonDisabled,
+                      ]}
+                      onPress={() => handlePreviewAdhan(option.value)}
+                      disabled={previewLoading !== null || option.value === "silent"}
+                    >
+                      <Ionicons
+                        name={playingAdhan === option.value ? "stop" : "play"}
+                        size={16}
+                        color={
+                          playingAdhan === option.value
+                            ? colors.textOnPrimary
+                            : colors.primary
+                        }
+                      />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.selectButton,
+                        selectedAdhan === option.value && styles.selectButtonSelected,
+                      ]}
+                      onPress={() => handleSelectAdhan(option.value)}
+                    >
+                      <Text
+                        style={[
+                          styles.selectButtonText,
+                          selectedAdhan === option.value && styles.selectButtonTextSelected,
+                        ]}
+                      >
+                        {selectedAdhan === option.value ? "Selected" : "Select"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               ))}
             </View>
           </View>
@@ -1148,6 +1257,48 @@ const getStyles = (colors: any, shadows: any) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
+  },
+  adhanOptionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  previewButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primary + "12",
+  },
+  previewButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  previewButtonDisabled: {
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  selectButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  selectButtonSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "15",
+  },
+  selectButtonText: {
+    fontSize: typography.sizes.xs,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textSecondary,
+  },
+  selectButtonTextSelected: {
+    color: colors.primary,
   },
   adhanOptionText: {
     fontSize: typography.sizes.md,

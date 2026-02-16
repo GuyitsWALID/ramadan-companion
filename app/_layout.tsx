@@ -13,9 +13,11 @@ import {
 } from "@expo-google-fonts/inter";
 import { AmiriQuran_400Regular } from "@expo-google-fonts/amiri-quran";
 import { UserProvider } from "../context/UserContext";
+import { useUser } from "../context/UserContext";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { NetworkProvider, useNetwork } from "../context/NetworkContext";
 import { ThemeProvider, useTheme } from "../context/ThemeContext";
+import { useNotificationManager } from "../hooks/useNotificationManager";
 import { lightColors as colors } from "../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { OfflineBanner } from "../components/OfflineBanner";
@@ -83,6 +85,36 @@ function OfflineBannerWrapper({ children }: { children: React.ReactNode }) {
   );
 }
 
+function NotificationBootstrap({ children }: { children: React.ReactNode }) {
+  const { settings, loading } = useUser();
+  const { isInitialized, updateNotificationSettings } = useNotificationManager();
+
+  useEffect(() => {
+    if (loading || !isInitialized) return;
+
+    updateNotificationSettings({
+      prayerReminders: settings.prayerReminders,
+      quranReminders: settings.quranReminders,
+      ramadanReminders: settings.ramadanReminders,
+      soundEnabled: settings.soundEnabled,
+      vibrationEnabled: settings.vibrationEnabled,
+    }).catch((error) => {
+      console.error("Error syncing notification settings:", error);
+    });
+  }, [
+    loading,
+    isInitialized,
+    settings.prayerReminders,
+    settings.quranReminders,
+    settings.ramadanReminders,
+    settings.soundEnabled,
+    settings.vibrationEnabled,
+    updateNotificationSettings,
+  ]);
+
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
   // 3. Load Inter Fonts
   const [fontsLoaded, fontError] = useFonts({
@@ -120,17 +152,19 @@ export default function RootLayout() {
           <AuthProvider>
             <UserProvider>
               <NetworkProvider>
-                <NavigationGuard>
-                  <OfflineBannerWrapper>
-                    <Stack screenOptions={{ headerShown: false }}>
-                      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen name="support" options={{ presentation: "modal" }} />
-                      <Stack.Screen name="widgets" options={{ presentation: "modal" }} />
-                      <Stack.Screen name="privacy" options={{ presentation: "modal" }} />
-                    </Stack>
-                  </OfflineBannerWrapper>
-                </NavigationGuard>
+                <NotificationBootstrap>
+                  <NavigationGuard>
+                    <OfflineBannerWrapper>
+                      <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen name="support" options={{ presentation: "modal" }} />
+                        <Stack.Screen name="widgets" options={{ presentation: "modal" }} />
+                        <Stack.Screen name="privacy" options={{ presentation: "modal" }} />
+                      </Stack>
+                    </OfflineBannerWrapper>
+                  </NavigationGuard>
+                </NotificationBootstrap>
               </NetworkProvider>
             </UserProvider>
           </AuthProvider>
