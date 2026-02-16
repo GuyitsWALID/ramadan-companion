@@ -1,5 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
-import { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { typography, spacing, borderRadius } from "../constants/theme";
@@ -66,27 +65,18 @@ export default function SupportModal() {
   const router = useRouter();
   const { colors, shadows } = useTheme();
   const styles = getStyles(colors, shadows);
-  const [selectedTier, setSelectedTier] = useState<DonationTier | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const buyMeACoffeeUrl = "https://buymeacoffee.com/WaliyawTech";
 
-  const handleDonation = (tier: DonationTier) => {
-    setSelectedTier(tier);
-    processDonation(tier);
-  };
-
-  const processDonation = async (tier: DonationTier) => {
-    setIsProcessing(true);
+  const handleDonation = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      Alert.alert(
-        "Thank You!",
-        `Thank you for your generous ${tier.name} donation of $${tier.amount}!`,
-        [{ text: "OK", onPress: () => setSelectedTier(null) }]
-      );
+      const supported = await Linking.canOpenURL(buyMeACoffeeUrl);
+      if (!supported) {
+        Alert.alert("Error", "Could not open donation page.");
+        return;
+      }
+      await Linking.openURL(buyMeACoffeeUrl);
     } catch (error) {
-      Alert.alert("Error", "Processing failed. Please try again.");
-    } finally {
-      setIsProcessing(false);
+      Alert.alert("Error", "Could not open donation page. Please try again.");
     }
   };
 
@@ -121,17 +111,14 @@ export default function SupportModal() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Choose Your Support Level</Text>
           {donationTiers.map((tier) => {
-            const isSelected = selectedTier?.id === tier.id;
             return (
               <TouchableOpacity
                 key={tier.id}
                 style={[
                   styles.tierCard,
                   tier.popular && styles.popularTier,
-                  isSelected && styles.selectedTier,
                 ]}
-                onPress={() => !isProcessing && handleDonation(tier)}
-                disabled={isProcessing}
+                onPress={handleDonation}
               >
                 {tier.popular && (
                   <View style={styles.popularBadge}>
@@ -157,14 +144,13 @@ export default function SupportModal() {
                 
                 <View style={[
                   styles.donateButton,
-                  isSelected && styles.selectedButton,
-                  tier.popular && !isSelected && styles.popularButton,
+                  tier.popular && styles.popularButton,
                 ]}>
                   <Text style={[
                     styles.buttonText,
-                    (isSelected || tier.popular) && { color: colors.textOnPrimary }
+                    tier.popular && { color: colors.textOnPrimary }
                   ]}>
-                    {isProcessing && isSelected ? "Processing..." : `Donate $${tier.amount}`}
+                    {`Donate $${tier.amount}`}
                   </Text>
                 </View>
               </TouchableOpacity>

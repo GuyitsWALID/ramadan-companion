@@ -210,6 +210,13 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Text style={styles.userName}>{user?.name || "User"}</Text>
+          <TouchableOpacity
+            style={styles.supportHeaderButton}
+            onPress={() => router.push("/support")}
+          >
+            <Ionicons name="heart-outline" size={16} color={colors.textOnPrimary} />
+            <Text style={styles.supportHeaderButtonText}>Support the App</Text>
+          </TouchableOpacity>
           <Text style={styles.userEmail}>{user?.email ?? (isAuthenticated ? "Signed in" : "Not signed in")}</Text>
           
           {effectiveLocation && (
@@ -572,17 +579,6 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.settingRow}
-            onPress={() => router.push("/support")}
-          >
-            <View style={styles.settingLeft}>
-              <Ionicons name="heart-outline" size={22} color={colors.error} />
-              <Text style={styles.settingName}>Support the App</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.settingRow}>
             <View style={styles.settingLeft}>
               <Ionicons name="star-outline" size={22} color={colors.warning} />
@@ -684,6 +680,22 @@ const getStyles = (colors: any) => StyleSheet.create({
     fontFamily: typography.fonts.regular,
     color: colors.textSecondary,
     marginBottom: spacing.sm,
+  },
+  supportHeaderButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.error,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  supportHeaderButtonText: {
+    fontSize: typography.sizes.sm,
+    fontFamily: typography.fonts.semiBold,
+    color: colors.textOnPrimary,
   },
   locationBadge: {
     flexDirection: "row",
