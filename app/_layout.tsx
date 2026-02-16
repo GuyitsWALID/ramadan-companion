@@ -2,7 +2,7 @@ import { ConvexProvider, ConvexReactClient } from "convex/react";
 import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import {
   useFonts,
@@ -40,13 +40,14 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const isOnboardingRoute = segments.includes("onboarding");
 
     console.log("[NavGuard]", { isAuthenticated, isOnboarded, inAuthGroup, segments: segments.join("/") });
 
     if (!isAuthenticated && !inAuthGroup) {
       // User is not authenticated, redirect to auth
       router.replace("/(auth)");
-    } else if (isAuthenticated && !isOnboarded && inAuthGroup && segments[1] !== "onboarding") {
+    } else if (isAuthenticated && !isOnboarded && inAuthGroup && !isOnboardingRoute) {
       // User is authenticated but hasn't completed onboarding
       router.replace("/(auth)/onboarding");
     } else if (isAuthenticated && isOnboarded && inAuthGroup) {
@@ -88,9 +89,20 @@ function OfflineBannerWrapper({ children }: { children: React.ReactNode }) {
 function NotificationBootstrap({ children }: { children: React.ReactNode }) {
   const { settings, loading } = useUser();
   const { isInitialized, updateNotificationSettings } = useNotificationManager();
+  const lastSyncedSettingsRef = useRef<string>("");
 
   useEffect(() => {
     if (loading || !isInitialized) return;
+    const currentSettingsKey = JSON.stringify({
+      prayerReminders: settings.prayerReminders,
+      quranReminders: settings.quranReminders,
+      ramadanReminders: settings.ramadanReminders,
+      soundEnabled: settings.soundEnabled,
+      vibrationEnabled: settings.vibrationEnabled,
+    });
+
+    if (lastSyncedSettingsRef.current === currentSettingsKey) return;
+    lastSyncedSettingsRef.current = currentSettingsKey;
 
     updateNotificationSettings({
       prayerReminders: settings.prayerReminders,
@@ -109,7 +121,6 @@ function NotificationBootstrap({ children }: { children: React.ReactNode }) {
     settings.ramadanReminders,
     settings.soundEnabled,
     settings.vibrationEnabled,
-    updateNotificationSettings,
   ]);
 
   return <>{children}</>;

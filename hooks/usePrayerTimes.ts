@@ -67,7 +67,7 @@ export const usePrayerTimes = () => {
   const calculateAndSetPrayerTimes = async () => {
     try {
       setLoading(true);
-      const times = await calculateTodayPrayerTimes(location, prayerSettings);
+      const times = await calculateTodayPrayerTimes(location ?? undefined, prayerSettings ?? undefined);
       
       // Determine current and next prayer
       const now = new Date();
